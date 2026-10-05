@@ -1,6 +1,6 @@
 {
   "name": "jira-tools",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Jira integration tools for fetching and managing issues, sprints, and agile workflows efficiently",
   "author": {
     "name": "Eric Fisher"

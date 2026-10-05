@@ -130,15 +130,21 @@ One Jira Task **per group**, not per finding.
 
 ### A1. Skip what is already filed
 
-Before creating anything, search for an existing ticket for that rule:
+Before creating anything, list the open sonar tickets, then read each description for its
+sentinel. `search_issues.py` never returns descriptions, so the second step needs
+`fetch_jira_issue.py`:
 
 ```sh
-python ${CLAUDE_PLUGIN_ROOT}/skills/search-issues/scripts/search_issues.py \
-  --jql 'project = <JIRA_KEY> AND labels = sonar AND statusCategory != Done' \
-  --fields summary,description --format json
+for t in $(python ${CLAUDE_PLUGIN_ROOT}/skills/search-issues/scripts/search_issues.py \
+    --jql 'project = <JIRA_KEY> AND labels = sonar AND statusCategory != Done' \
+    --max-results 100 --format json | jq -r '.issues[].key'); do
+  python ${CLAUDE_PLUGIN_ROOT}/skills/jira-issue/scripts/fetch_jira_issue.py "$t" \
+    --fields description --max-desc 100000 --format json \
+    | jq -r '.description' | sed -n "s/^sonar-rule: /$t /p"
+done
 ```
 
-Match on the sentinel below. A rule that already has an open ticket is **skipped**, and
+This prints `<KEY> <rule>` for every open sonar ticket. Match on the sentinel below. A rule that already has an open ticket is **skipped**, and
 reported as skipped — re-running this command must not litter the backlog with duplicates.
 
 ### A2. Sentinel
