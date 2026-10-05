@@ -1,0 +1,17 @@
+{
+  "name": "plane-tools",
+  "version": "1.0.1",
+  "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
+  "author": {
+    "name": "ericfisherdev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "plane",
+    "gitlab",
+    "workflow",
+    "backlog",
+    "automation",
+    "subagents"
+  ]
+}
