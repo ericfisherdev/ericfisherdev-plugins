@@ -12,6 +12,7 @@ Usage:
   plane_state.py show READ-16                   # one work item, body included
   plane_state.py move READ-16 "In Progress"     # transition
   plane_state.py move READ-16 Done --assign eric
+  plane_state.py update-plan READ-16 --file plan.md   # replace only the Implementation Plan
 
 Config, env first then fallback:
   PLANE_BASE_URL   default http://192.168.0.16:8090
@@ -20,6 +21,7 @@ Config, env first then fallback:
 """
 
 import argparse
+import html
 import json
 import os
 import re
@@ -296,6 +298,132 @@ def cmd_show(args):
         print(re.sub(r"\n{3,}", "\n\n", text).strip())
 
 
+# ------------------------------------------------------------ update-plan ----
+PLAN_HEADING = "implementation plan"
+HEADING_RE = re.compile(r"<h([1-6])\b[^>]*>(.*?)</h\1\s*>", re.IGNORECASE | re.DOTALL)
+LIST_ITEM_RE = re.compile(r"^\s*(?:([-*])|\d+[.)])\s+(.*)$")
+
+
+def heading_text(inner_html):
+    """Normalised heading text: tags stripped, leading numbering and trailing colon dropped."""
+    text = html.unescape(re.sub(r"<[^>]+>", "", inner_html))
+    return re.sub(r"^[\d.\s]+", "", text).strip().rstrip(":").strip().lower()
+
+
+def find_plan_section(body_html, key):
+    """Offsets (start, end) of the content under the Implementation Plan heading.
+
+    The section runs from the end of that heading to the next heading of the same
+    or a higher level, or to the end of the body. Anything else in the body is
+    outside the span, so splicing into it cannot touch Description or Acceptance
+    Criteria. Exits loudly if the heading is missing or ambiguous.
+    """
+    headings = list(HEADING_RE.finditer(body_html))
+    texts = [heading_text(h.group(2)) for h in headings]
+    matches = [h for h, t in zip(headings, texts) if t == PLAN_HEADING]
+    if not matches:
+        found = ", ".join(repr(t) for t in texts) or "(no headings)"
+        sys.exit(f"{key.upper()} has no 'Implementation Plan' heading, so nothing was "
+                 f"written. Headings found: {found}")
+    if len(matches) > 1:
+        sys.exit(f"{key.upper()} has {len(matches)} 'Implementation Plan' headings; "
+                 f"refusing to guess which to replace.")
+    heading = matches[0]
+    level = int(heading.group(1))
+    end = next((h.start() for h in headings
+                if h.start() > heading.start() and int(h.group(1)) <= level), len(body_html))
+    return heading.end(), end
+
+
+def inline_markup(text):
+    text = html.escape(text, quote=False)
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+
+
+def markdown_to_html(text):
+    """Small markdown subset: paragraphs, flat -/1. lists, fenced code, `code`, **bold**.
+
+    Headings are rejected: a heading inside the plan would split the section and
+    make the next update-plan replace only part of it.
+    """
+    out, paragraph, items, list_tag, code = [], [], [], None, None
+
+    def flush_paragraph():
+        if paragraph:
+            out.append(f"<p>{inline_markup(' '.join(paragraph))}</p>")
+            paragraph.clear()
+
+    def flush_list():
+        if items:
+            body = "".join(f"<li><p>{inline_markup(i)}</p></li>" for i in items)
+            out.append(f"<{list_tag}>{body}</{list_tag}>")
+            items.clear()
+
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            if code is None:
+                flush_paragraph()
+                flush_list()
+                code = []
+            else:
+                out.append(f"<pre><code>{html.escape(chr(10).join(code), quote=False)}</code></pre>")
+                code = None
+        elif code is not None:
+            code.append(line)
+        elif re.match(r"^\s{0,3}#{1,6}\s", line):
+            sys.exit(f"Plan contains a markdown heading ({line.strip()!r}); use bold lead-ins "
+                     f"or list items instead, headings would split the section")
+        elif not line.strip():
+            flush_paragraph()
+            flush_list()
+        elif (item := LIST_ITEM_RE.match(line)):
+            flush_paragraph()
+            tag = "ul" if item.group(1) else "ol"
+            if items and tag != list_tag:
+                flush_list()
+            list_tag = tag
+            items.append(item.group(2))
+        elif items and line[0].isspace():
+            items[-1] += " " + line.strip()  # continuation of the previous item
+        else:
+            flush_list()
+            paragraph.append(line.strip())
+    if code is not None:
+        sys.exit("Plan has an unterminated ``` code fence")
+    flush_paragraph()
+    flush_list()
+    return "".join(out)
+
+
+def read_plan_html(path):
+    """Plan file -> HTML. A file starting with '<' is taken as HTML, else markdown."""
+    if not os.path.isfile(path):
+        sys.exit(f"Plan file not found: {path}")
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    if not text.strip():
+        sys.exit(f"Plan file {path} is empty; refusing to blank the Implementation Plan")
+    return text.strip() if text.lstrip().startswith("<") else markdown_to_html(text)
+
+
+def cmd_update_plan(args):
+    """PATCH description_html with only the Implementation Plan section replaced."""
+    plan_html = read_plan_html(args.file)
+    item = fetch_by_key(args.key)
+    project = resolve_project(args.key.split("-")[0])
+    body_html = item.get("description_html") or ""
+    start, end = find_plan_section(body_html, args.key)
+
+    api(
+        f"/workspaces/{WORKSPACE}/projects/{project['id']}/work-items/{item['id']}/",
+        method="PATCH",
+        payload={"description_html": f"{body_html[:start]}{plan_html}{body_html[end:]}"},
+    )
+    print(f"{args.key.upper()} Implementation Plan replaced "
+          f"({end - start} -> {len(plan_html)} chars); rest of the body untouched")
+
+
 # ------------------------------------------------------------------- move ----
 def cmd_move(args):
     item = fetch_by_key(args.key)
@@ -384,6 +512,13 @@ def main():
     h.add_argument("key", help="e.g. READ-16")
     h.add_argument("--no-body", dest="body", action="store_false", default=True)
     h.set_defaults(func=cmd_show)
+
+    u = sub.add_parser("update-plan",
+                       help="replace only the Implementation Plan section of a work item body")
+    u.add_argument("key", help="e.g. READ-16")
+    u.add_argument("--file", required=True,
+                   help="markdown (or HTML) file holding the new plan, without its heading")
+    u.set_defaults(func=cmd_update_plan)
 
     w = sub.add_parser("wait", help=f"flag/clear '{WAITING_LABEL}' on a work item")
     w.add_argument("key")
