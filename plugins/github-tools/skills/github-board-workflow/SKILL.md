@@ -6,10 +6,59 @@ argument-hint: '<OWNER/REPO> --project <N> [--parent <ISSUE>|--label <L>|--works
 
 # GitHub Board Workflow
 
+## Contents
+
+- Needs
+- Overview
+- Rules that hold every time
+- Jira sibling and GitHub equivalents
+- Invocation
+- Why it is built this way
+- The one script
+- Phase 0 — Preflight
+- Phase 1 — Dependency audit
+- Phase 2 — Planning (parallel, Fable)
+- Phase 3 — Implementation (sequential, Sonnet)
+  - Handling `awaiting-review`
+  - Parent issues (the PR-per-parent pattern)
+- Phase 3.5 / 3.6 — Sonar (Sonar repos only)
+- Phase 4 — Report
+- Orchestrator context rules
+- Standing authorizations
+- Known gotchas
+- Reference
+
+## Needs
+
+- `gh` — GitHub CLI, logged in with the `project` scope (`pacman -S github-cli`, then `gh auth login`)
+- python3 (3.8+)
+- [scripts/gh_board.py](scripts/gh_board.py) — board `state` / `set` / `add` helper (the one script)
+- [scripts/ci_failure.py](scripts/ci_failure.py) — names the failing job, step and decisive log lines for a PR
+- [scripts/job_history.py](scripts/job_history.py) — proves or disproves a "known flake" claim from a job's run history
+- [scripts/merge_readiness.py](scripts/merge_readiness.py) — one-line merge verdict for a PR
+- [scripts/gh_common.py](scripts/gh_common.py) — shared helpers imported by the three CI scripts above
+- `board-planner` and `board-implementer` agent definitions in `~/.claude/agents/` — the phase agents below run through them; they are not bundled with this plugin
+- jira-tools plugin (optional, only for the Sonar check in Phase 0) — provides `skills/jira-sprint-workflow/scripts/sonar_state.py`
+
+## Overview
+
 Drives a queue of GitHub issues from planning to merged. The orchestrator (you, in the
 main session) never writes code, never reads a diff, and never reads a full issue body.
 Every issue is handled by a **subagent with its own context window**, which is what keeps
 a 20-issue run from filling a 200k-token session.
+
+## Rules that hold every time
+
+- `state` is **the only way you read board state**; never page through project JSON or
+  `gh issue list` output yourself.
+- **Never** read issue bodies, source files, diffs, PR bodies, or CI logs in the main
+  session. Subagents do that.
+- Your working memory is the ledger: one line per issue.
+- Cap every subagent's return at ~6 lines and say so in the prompt.
+- Never use an admin override to merge. If a merge is refused (required review, protected
+  branch), STOP and report.
+
+## Jira sibling and GitHub equivalents
 
 This is the GitHub sibling of `jira-board-workflow`. Same phases, same subagent contract,
 same merge gates. What differs is where state lives:
@@ -72,14 +121,14 @@ effort setting.
 ## The one script
 
 ```sh
-S=~/.claude/skills/github-board-workflow/scripts/gh_board.py
+S="${CLAUDE_SKILL_DIR}/scripts/gh_board.py"
 python3 $S state OWNER/REPO --project N [scope flags] [--include-parents] [--json]
 python3 $S set   OWNER/REPO --project N ISSUE [--status S] [--points P] [--assignee LOGIN]
 python3 $S add   OWNER/REPO --project N ISSUE
 ```
 
-`state` is **the only way you read board state**; never page through project JSON or
-`gh issue list` output yourself. It prints one table plus a verdict: `planning complete`,
+Read board state only through `state` (see [Rules that hold every time](#rules-that-hold-every-time)).
+It prints one table plus a verdict: `planning complete`,
 external blockers, in-flight issues, unassigned issues, and `next issue`.
 
 `set` is how every subagent advances an issue. It resolves item ids and option ids
@@ -106,7 +155,7 @@ Confirm:
 - `--repo` path exists and `git -C <path> remote get-url origin` points at `OWNER/REPO`.
 
 Resolve Sonar once, here, exactly as `jira-board-workflow` does (it reuses
-`~/.claude/skills/jira-sprint-workflow/scripts/sonar_state.py key <REPO_PATH>`), and
+`sonar_state.py key <REPO_PATH>` from the jira-tools plugin's `jira-sprint-workflow` skill), and
 carry the answer through the run. exit 0 = ON, exit 1 = OFF, anything else = stop.
 
 ## Phase 1 — Dependency audit
@@ -131,7 +180,7 @@ Spawn **one `board-planner` subagent per `Todo` issue, all in parallel**, each w
 (numbers + titles only). The agent file already carries the rules below; the prompt
 restates the specifics so the planner has them without reading the skill.
 
-Planner prompt template:
+Planner prompt template. Send verbatim, filling <placeholders>.
 
 ```
 Plan GitHub issue #<N> in <OWNER/REPO>. Do not write any implementation code.
@@ -155,7 +204,7 @@ Steps:
 6. Estimate points (Fibonacci: 1,2,3,5,8,13). 8+ means it should be split — say so.
 7. Advance the issue in ONE call — points, assignee, and status together, so it never
    leaves Todo unassigned:
-     python3 ~/.claude/skills/github-board-workflow/scripts/gh_board.py set \
+     python3 ${CLAUDE_SKILL_DIR}/scripts/gh_board.py set \
        <OWNER/REPO> --project <PROJECT_NUMBER> <N> \
        --points <P> --assignee ericfisherdev --status "Plan Created"
 
@@ -183,22 +232,39 @@ Each iteration:
 
 ### Handling `awaiting-review`
 
-Identical to `jira-board-workflow`: you own the watch, poll on a ~10 min interval via
-`ScheduleWakeup` with
-`python ~/.claude/scripts/ci-helpers/merge_readiness.py <PR> --repo <REPO_PATH>`
+Identical to `jira-board-workflow`: you own the watch. Poll on a long interval (~10 min,
+a delay of about 600 seconds, using `ScheduleWakeup`; if that tool is not available, use
+`/loop` at the same interval; never a tight loop) with
+`python "${CLAUDE_SKILL_DIR}/scripts/merge_readiness.py" <PR> --repo <REPO_PATH>`
 (one verdict line: mergeable, or exactly what blocks it), never read review bodies, and spawn a fresh
 `board-implementer` subagent to resume at step 11 (new review activity) or step 13
 (merged). After ~2 hours
 of silence, ask the user whether to merge under the standing authorization.
 
-Implementer prompt template:
+Implementer prompt template. Send verbatim, filling <placeholders>.
 
 ```
 Implement GitHub issue #<N> end to end, in <OWNER/REPO>, checkout <REPO_PATH>, board
 project <PROJECT_NUMBER>.
 
 Board helper (use it for every status change; never edit project fields by hand):
-  BOARD="python3 ~/.claude/skills/github-board-workflow/scripts/gh_board.py"
+  BOARD="python3 ${CLAUDE_SKILL_DIR}/scripts/gh_board.py"
+
+Copy this checklist and track progress:
+- [ ] Step 1: Mark the issue In Progress
+- [ ] Step 2: Read the Implementation Plan
+- [ ] Step 3: Create a worktree off the fetched remote head
+- [ ] Step 4: Implement, test, and run the repo's gates
+- [ ] Step 5: Stage changes
+- [ ] Step 6: Commit
+- [ ] Step 7: Push and open a draft PR, mark In Review
+- [ ] Step 8: Wait for CI to pass
+- [ ] Step 9: Take the PR out of draft
+- [ ] Step 10: Sonar triage (Sonar repos only)
+- [ ] Step 11: Review watch
+- [ ] Step 12: Merge gate and merge
+- [ ] Step 13: Refetch origin
+- [ ] Step 14: Mark Done and remove the worktree
 
 1. $BOARD set <OWNER/REPO> --project <PROJECT_NUMBER> <N> --status "In Progress"
 2. Read the issue's Implementation Plan (gh issue view <N> -R <OWNER/REPO>) and follow it.
@@ -215,6 +281,8 @@ Board helper (use it for every status change; never edit project fields by hand)
    specific thing that changed. Never "address review findings".
 7. Push and open a DRAFT PR against <OWNER/REPO>, base = default branch. Title:
      <type>: <lowercase description> (#<N>)
+   For example: "fix: revalidate fast-drive checkpoint copy against source before
+   serving (#166)".
    Body must contain a line `Closes #<N>` so the merge closes the issue. Check recent PR
    titles (gh pr list -R <OWNER/REPO> --state all --limit 20 --json title) and match
    what is actually there.
@@ -224,14 +292,14 @@ Board helper (use it for every status change; never edit project fields by hand)
    local gates from step 4 as the bar.
    To see WHY a run is red, do not page through logs — this prints the failing job, the
    failing step and the few decisive log lines, and exits 0 green / 1 failing:
-     python ~/.claude/scripts/ci-helpers/ci_failure.py --pr <PR> --repo <REPO_PATH>
+     python "${CLAUDE_SKILL_DIR}/scripts/ci_failure.py" --pr <PR> --repo <REPO_PATH>
    Before writing any failure off as a known flake, prove it:
-     python ~/.claude/scripts/ci-helpers/job_history.py "<job name>" --repo <REPO_PATH>
+     python "${CLAUDE_SKILL_DIR}/scripts/job_history.py" "<job name>" --repo <REPO_PATH>
 9. Take the PR out of draft: gh pr ready <PR>
 10. [Sonar repos only] /sonar-triage <SONAR_KEY> --pr <PR> --repo <REPO_PATH>, scoped to
     findings this PR added. Wait for analysis; a fix re-runs CI, go back to step 8.
 11. REVIEW WATCH: watch until merged. Each cycle read
-      python ~/.claude/scripts/ci-helpers/merge_readiness.py <PR> --repo <REPO_PATH>
+      python "${CLAUDE_SKILL_DIR}/scripts/merge_readiness.py" <PR> --repo <REPO_PATH>
     which reports PR state, the checks on the current head, the review decision, the
     unresolved-thread count and the branch's actual protection rules in one pass.
     a. MERGED → step 13.
@@ -248,12 +316,12 @@ Board helper (use it for every status change; never edit project fields by hand)
     applies once CI is green: the standing authorization covers merging a clean PR.
 12. MERGE GATE: confirm it mechanically first — one command covers the whole gate and
     exits 1 with the specific blockers if it is not satisfied:
-      python ~/.claude/scripts/ci-helpers/merge_readiness.py <PR> --repo <REPO_PATH>
+      python "${CLAUDE_SKILL_DIR}/scripts/merge_readiness.py" <PR> --repo <REPO_PATH>
     Every required check green on the PR's CURRENT head AND zero unresolved threads,
     then: gh pr merge <PR> --rebase --delete-branch
     If a required check fails and you cannot fix it, stop and report. If the merge is
-    refused for another reason (required review, protected branch), STOP and report; do
-    not use an admin override.
+    refused for another reason, STOP and report; the no-admin-override rule under "Rules
+    that hold every time" applies.
 13. git -C <REPO_PATH> fetch origin --prune
 14. $BOARD set <OWNER/REPO> --project <PROJECT_NUMBER> <N> --assignee ericfisherdev --status Done
     (closes the issue if the PR's `Closes #N` did not already). Then remove the worktree:
@@ -271,6 +339,9 @@ ii. Reply per thread using the databaseId of the thread's FIRST comment:
     Fixed: name the commit and what changed. Rebutted: give the concrete reason with
     file:line, then the follow-up (none / issue #N filed / deferred and why). Never
     double-reply on a re-review round.
+    Example of a fixed reply:
+      "Addressed in a1b2c3d — clamp ageBoost to non-negative so future-dated items
+      cannot lower the score." Do not just write "fixed" or "done".
 iii. Resolve each replied thread, fixed and rebutted alike:
       gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<node_id>"}) { thread { isResolved } } }'
 iv. Top-level PR comments or review bodies have no thread: reply in place with
@@ -322,10 +393,8 @@ Then **stop**.
 
 ## Orchestrator context rules
 
-- **Never** read issue bodies, source files, diffs, PR bodies, or CI logs in the main
-  session. Subagents do that.
-- Your working memory is the ledger: one line per issue.
-- Cap every subagent's return at ~6 lines and say so in the prompt.
+These rules now live under [Rules that hold every time](#rules-that-hold-every-time) near
+the top of this file.
 
 ## Standing authorizations
 
@@ -377,3 +446,7 @@ the run's scope, changing board fields or options, enabling or disabling workflo
 - **Repo layouts vary.** Step 3 fetches `origin` and branches off `origin/HEAD`; the
   worktree goes in a sibling directory (`../wt-N`) so it never nests inside the checkout.
 - **Whole-board runs are refused above 12 workable issues.** Ask for a scope.
+
+## Reference
+
+- [evals/test-prompts.md](evals/test-prompts.md) — three test prompts and the baseline without the skill.
