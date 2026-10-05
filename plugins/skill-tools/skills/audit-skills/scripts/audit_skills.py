@@ -63,7 +63,7 @@ REASONING_EXTRACTION_PATTERN = re.compile(
     r"|reflect on (your|the) (reasoning|answer)",
     re.IGNORECASE)
 FIRST_PERSON_PATTERN = re.compile(r"\b(I|I'll|I'm|I've|we|we'll|our|my)\b")
-QUOTED_TRIGGER_PATTERN = re.compile(r"\"[^\"]*\"|'[^']*'")  # user trigger phrases quoted in a description
+QUOTED_TRIGGER_PATTERN = re.compile(r"\"[^\"]*\"|(?<!\w)'[^']*'(?!\w)")  # quoted trigger phrases, not apostrophes
 SECOND_PERSON_PATTERN = re.compile(r"\b(you|you'll|your)\b", re.IGNORECASE)
 PERSONAL_PATH_PATTERN = re.compile(r"(/home/[A-Za-z0-9_.-]+/|/Users/[A-Za-z0-9_.-]+/|[A-Za-z]:\\Users\\)")
 BACKSLASH_PATH_PATTERN = re.compile(r"(?<![\\`])\b[A-Za-z0-9_.-]+\\[A-Za-z0-9_.-]+\\[A-Za-z0-9_.-]+")
@@ -167,7 +167,7 @@ def collect_skill_files(root: Path) -> List[Path]:
             if filename in IGNORED_NAMES or filename.startswith("."):
                 continue
             path = Path(directory) / filename
-            if path.name == "SKILL.md" and path.parent == root:
+            if (path.name == "SKILL.md" and path.parent == root) or not path.is_file():
                 continue
             files.append(path)
     return files
@@ -293,7 +293,9 @@ def referenced_paths(text: str) -> Set[str]:
             candidate = match.group(1).strip()
             if candidate.startswith(("http://", "https://", "mailto:", "#")):
                 continue
-            refs.add(candidate.lstrip("./"))
+            while candidate.startswith("./"):
+                candidate = candidate[2:]
+            refs.add(candidate)
     return refs
 
 
@@ -307,7 +309,7 @@ def resolve_reference(skill: Skill, reference: str) -> Optional[Path]:
 def links_from(skill: Skill, path: Path) -> Set[Path]:
     """Files or directories inside the skill folder that `path` references."""
     targets: Set[Path] = set()
-    for reference in referenced_paths(path.read_text(encoding="utf-8", errors="replace")):
+    for reference in referenced_paths("\n".join(read_lines(path))):
         resolved = resolve_reference(skill, reference)
         if resolved is not None and skill.root.resolve() in resolved.parents:
             targets.add(resolved)
@@ -419,9 +421,15 @@ def check_rule_2_contents_lists(skill: Skill) -> List[Finding]:
     return findings
 
 
+def unquote_yaml_scalar(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
+
+
 def check_rule_5_description(skill: Skill) -> List[Finding]:
     findings: List[Finding] = []
-    description = skill.frontmatter.get("description", "")
+    description = unquote_yaml_scalar(skill.frontmatter.get("description", ""))
     if not skill.frontmatter:
         return [Finding(5, "fail", "SKILL.md", 1, "No YAML frontmatter found",
                         "Add frontmatter with name and a third-person description of what the skill does and when to use it")]
@@ -705,12 +713,11 @@ def main(argv: List[str]) -> int:
     for skill_md in skill_files:
         try:
             skill = load_skill(skill_md)
+            if wanted and skill.name not in wanted and skill.root.name not in wanted:
+                continue
+            reports.append(audit(skill))
         except RuntimeError as error:
             print("warning: {}".format(error), file=sys.stderr)
-            continue
-        if wanted and skill.name not in wanted and skill.root.name not in wanted:
-            continue
-        reports.append(audit(skill))
     if not reports:
         print("No skills matched --only {}".format(sorted(wanted)), file=sys.stderr)
         return 2
