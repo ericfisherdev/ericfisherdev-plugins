@@ -24,7 +24,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.0 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
-| [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.0 |
+| [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [pixel-art-tools](#pixel-art-tools) | Design pixel art sprites as JSON grids and render them to PNG | 1.0.0 |
 | [rfp-tools](#rfp-tools) | Add park and recreation software RFPs to cross-linked requirements research | 1.0.0 |
 

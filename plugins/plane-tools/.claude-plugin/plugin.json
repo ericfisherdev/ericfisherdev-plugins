@@ -1,6 +1,6 @@
 {
   "name": "plane-tools",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
   "author": {
     "name": "ericfisherdev"

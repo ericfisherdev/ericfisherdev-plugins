@@ -37,7 +37,7 @@
       "name": "plane-tools",
       "source": "./plugins/plane-tools",
       "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "keywords": ["plane", "gitlab", "workflow", "backlog", "automation", "subagents"]
     },
     {

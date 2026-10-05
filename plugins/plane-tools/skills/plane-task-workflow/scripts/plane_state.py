@@ -337,8 +337,13 @@ def find_plan_section(body_html, key):
 
 def inline_markup(text):
     text = html.escape(text, quote=False)
-    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
-    return re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    # One pass so `**x**` inside backticks stays literal code instead of nesting <strong>.
+    return re.sub(
+        r"`([^`]+)`|\*\*([^*]+)\*\*",
+        lambda m: f"<code>{m.group(1)}</code>" if m.group(1) is not None
+        else f"<strong>{m.group(2)}</strong>",
+        text,
+    )
 
 
 def markdown_to_html(text):
@@ -404,7 +409,13 @@ def read_plan_html(path):
         text = fh.read()
     if not text.strip():
         sys.exit(f"Plan file {path} is empty; refusing to blank the Implementation Plan")
-    return text.strip() if text.lstrip().startswith("<") else markdown_to_html(text)
+    if not text.lstrip().startswith("<"):
+        return markdown_to_html(text)
+    heading = HEADING_RE.search(text)
+    if heading:
+        sys.exit(f"Plan HTML contains a heading (<h{heading.group(1)}>); use <p><strong> "
+                 "lead-ins or lists instead, headings would split the section")
+    return text.strip()
 
 
 def cmd_update_plan(args):
