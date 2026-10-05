@@ -23,6 +23,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.3.2 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.0.0 |
+| [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 
 ---
 
@@ -194,6 +195,46 @@ GitHub integration tools for PR lifecycle management, review automation, and rep
 
 **Requirements:**
 - GitHub CLI (`gh`) authenticated with repo access
+
+---
+
+### skill-tools
+
+Tools for auditing and maintaining Claude Code skills against the 13 skill-writing rules from Anthropic's skill guide (progressive disclosure, contents lists, degrees of freedom, model fit, concise third-person writing, checklists, feedback loops, templates/examples/forks, shareability, hooks for must-hold rules, evals first, important instructions at the top, no reasoning extraction).
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/audit-skills` | Audit personal, project, and plugin skills rule by rule; report with file:line evidence and a numbered fix list; apply only approved fixes |
+
+**Features:**
+- Discovers skills in `~/.claude/skills`, `.claude/skills`, and installed plugin caches
+- Bundled checker script decides the mechanical rules; Claude reads each skill for the judgment rules
+- Report-first: nothing is edited until fix numbers are approved
+- Re-audits every changed skill after fixes are applied
+
+**Usage Examples:**
+
+```bash
+# Audit every installed skill
+/audit-skills
+
+# Audit only personal skills
+/audit-skills --personal
+
+# Audit two named skills inside installed plugins
+/audit-skills --plugins --only review-watch,create-issue
+
+# Audit a specific skill folder
+/audit-skills ~/.claude/skills/my-skill
+
+# Run the checker directly
+python3 plugins/skill-tools/skills/audit-skills/scripts/audit_skills.py --all --summary
+```
+
+**Requirements:**
+- Python 3.8+ (standard library only)
 
 ---
 
