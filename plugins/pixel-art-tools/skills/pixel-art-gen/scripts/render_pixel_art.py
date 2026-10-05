@@ -67,7 +67,8 @@ def render_pixel_art(data, pixel_size_override=None, grid_lines_override=None):
         grid_lines_override: If set (True/False), overrides grid_lines from JSON.
 
     Returns:
-        PIL.Image.Image in RGBA mode.
+        Tuple of (PIL.Image.Image in RGBA mode, list of (x, y) tuples for pixels
+        that fell outside the grid and were not drawn).
     """
     width = data["width"]
     height = data["height"]
@@ -84,6 +85,7 @@ def render_pixel_art(data, pixel_size_override=None, grid_lines_override=None):
 
     img = Image.new("RGBA", (img_width, img_height), bg_color)
     draw = ImageDraw.Draw(img)
+    dropped_pixels = []
 
     for pixel in data.get("pixels", []):
         x = pixel["x"]
@@ -91,8 +93,7 @@ def render_pixel_art(data, pixel_size_override=None, grid_lines_override=None):
         color = parse_color(pixel["color"])
 
         if x < 0 or x >= width or y < 0 or y >= height:
-            print(f"Warning: pixel ({x}, {y}) is outside the {width}x{height} grid, skipping.",
-                  file=sys.stderr)
+            dropped_pixels.append((x, y))
             continue
 
         x0 = x * pixel_size
@@ -116,7 +117,21 @@ def render_pixel_art(data, pixel_size_override=None, grid_lines_override=None):
             line_y = gy * pixel_size
             draw.line([(0, line_y), (img_width - 1, line_y)], fill=grid_color, width=1)
 
-    return img
+    return img, dropped_pixels
+
+
+def format_dropped_pixels_message(dropped_pixels, width, height):
+    """Build the one-line stderr message listing pixels that were not drawn."""
+    coordinates = ", ".join(f"({x},{y})" for x, y in dropped_pixels)
+    return f"Dropped {len(dropped_pixels)} pixel(s) outside the {width}x{height} grid: {coordinates}"
+
+
+def require_schema_keys(data):
+    """Exit with an error naming any top-level key the renderer needs but is missing."""
+    missing = [key for key in ("width", "height", "pixels") if key not in data]
+    if missing:
+        print(f"Error: input JSON is missing required key(s): {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
 
 
 def main():
@@ -161,6 +176,7 @@ def main():
             raw = f.read()
 
     data = json.loads(raw)
+    require_schema_keys(data)
 
     # Determine grid lines override
     grid_lines_override = None
@@ -169,10 +185,15 @@ def main():
     elif args.grid_lines:
         grid_lines_override = True
 
-    img = render_pixel_art(data, pixel_size_override=args.pixel_size,
-                           grid_lines_override=grid_lines_override)
+    img, dropped_pixels = render_pixel_art(data, pixel_size_override=args.pixel_size,
+                                           grid_lines_override=grid_lines_override)
     img.save(args.output, "PNG")
     print(f"Saved {args.output} ({img.width}x{img.height}px)")
+
+    if dropped_pixels:
+        print(format_dropped_pixels_message(dropped_pixels, data["width"], data["height"]),
+              file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,12 @@
 # Pixel Art Reference Guide
 
+## Contents
+
+- JSON Pixel Data Schema
+- Suggested Color Palettes
+- Example: 8x8 Heart
+- Design Tips
+
 ## JSON Pixel Data Schema
 
 ```json
