@@ -39,20 +39,6 @@
       "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
       "version": "1.0.1",
       "keywords": ["plane", "gitlab", "workflow", "backlog", "automation", "subagents"]
-    },
-    {
-      "name": "pixel-art-tools",
-      "source": "./plugins/pixel-art-tools",
-      "description": "Design pixel art sprites as JSON grids and render them to PNG with a bundled script",
-      "version": "1.0.0",
-      "keywords": ["pixel-art", "sprites", "png", "pillow", "retro", "graphics"]
-    },
-    {
-      "name": "rfp-tools",
-      "source": "./plugins/rfp-tools",
-      "description": "Add park and recreation software RFPs to cross-linked requirements research with feature-catalog mapping",
-      "version": "1.0.0",
-      "keywords": ["rfp", "requirements", "research", "procurement", "obsidian"]
     }
   ]
 }
