@@ -20,10 +20,13 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 
 | Plugin | Description | Version |
 |--------|-------------|---------|
-| [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.3.2 |
+| [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.4.0 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
-| [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.0.0 |
+| [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.0 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
+| [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.0 |
+| [pixel-art-tools](#pixel-art-tools) | Design pixel art sprites as JSON grids and render them to PNG | 1.0.0 |
+| [rfp-tools](#rfp-tools) | Add park and recreation software RFPs to cross-linked requirements research | 1.0.0 |
 
 ---
 
@@ -51,6 +54,9 @@ Jira integration tools for managing issues, sprints, and agile workflows. Uses s
 | `/sprint-report` | Get sprint metrics, velocity, and burndown |
 | `/manage-sprint` | Create, start, or complete sprints |
 | `/move-to-sprint` | Move issues between sprints or backlog |
+| `/jira-board-workflow` | Run a Kanban board queue end to end: dependency audit, planning with points, implement, review, merge |
+| `/jira-sprint-workflow` | Run a full Jira sprint end to end with one fresh subagent per ticket |
+| `/sonar-triage` | Turn open SonarQube/SonarCloud issues into Jira tickets, or fix them directly on a PR |
 
 **Features:**
 - Token-efficient output with configurable truncation
@@ -172,6 +178,8 @@ GitHub integration tools for PR lifecycle management, review automation, and rep
 | Skill | Description |
 |-------|-------------|
 | `/review-watch` | Monitor PRs and automatically manage their lifecycle — fix CI, respond to reviews, rebase, and merge |
+| `/github-board-workflow` | Run a GitHub Projects queue end to end: dependency audit, planning with points, implement, review, merge |
+| `/pr-review-bot` | Watch a repo for new or updated PRs and act as the reviewer with inline findings |
 
 **Features:**
 - Automated PR lifecycle management (draft → review → merge)
@@ -235,6 +243,51 @@ python3 plugins/skill-tools/skills/audit-skills/scripts/audit_skills.py --all --
 
 **Requirements:**
 - Python 3.8+ (standard library only)
+
+---
+
+### plane-tools
+
+Works a Plane project's backlog one task at a time, each carried from plan to merge to Done before the next begins, with every task delegated to a fresh subagent.
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/plane-task-workflow` | Work the Plane backlog (up to 10 tasks per run): plan, implement, PR, merge, Done |
+
+**Requirements:**
+- `glab` (repos are on GitLab), Python 3.8+; see the skill's `## Needs` section
+
+---
+
+### pixel-art-tools
+
+Claude designs pixel art as a JSON grid and renders it to PNG with a bundled script; no external API.
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/pixel-art-gen` | Create, preview, and revise pixel art sprites |
+
+**Requirements:**
+- Python 3.8+ and `pip install Pillow`
+
+---
+
+### rfp-tools
+
+Adds park and recreation software RFPs to a cross-linked requirements research set: extracts requirements, maps them to a shared feature catalog, and re-renders the Obsidian notes.
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/add-rfp` | Add one or more RFPs to the requirements research and re-render every note |
+
+**Requirements:**
+- A local RFP pipeline checkout; see the skill's `## Needs` section
 
 ---
 
