@@ -25,6 +25,13 @@
       "description": "GitHub integration tools for PR lifecycle management, review automation, and repository workflows",
       "version": "1.0.0",
       "keywords": ["github", "pull-requests", "code-review", "ci-cd", "merge", "rebase", "workflow", "automation"]
+    },
+    {
+      "name": "skill-tools",
+      "source": "./plugins/skill-tools",
+      "description": "Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules",
+      "version": "1.0.0",
+      "keywords": ["skills", "audit", "lint", "best-practices", "progressive-disclosure", "skill-quality", "maintenance"]
     }
   ]
 }
