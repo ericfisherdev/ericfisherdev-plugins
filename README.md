@@ -22,7 +22,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 |--------|-------------|---------|
 | [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.4.1 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
-| [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.0 |
+| [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [pixel-art-tools](#pixel-art-tools) | Design pixel art sprites as JSON grids and render them to PNG | 1.0.0 |

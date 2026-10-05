@@ -290,9 +290,11 @@ opened, check whether the new commits address it:
   thread with the GraphQL below.
 
   ```bash
-  # list unresolved threads
-  gh api graphql -f query='{ repository(owner:"<OWNER>", name:"<REPO>") { pullRequest(number:<N>) { reviewThreads(first:50) { nodes { id isResolved comments(first:1) { nodes { databaseId author { login } } } } } } } }' \
-    --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false) | .id'
+  # list unresolved threads you opened: thread id, first-comment id, path, line
+  gh api graphql -f query='{ repository(owner:"<OWNER>", name:"<REPO>") { pullRequest(number:<N>) { reviewThreads(first:100) { nodes { id isResolved path line comments(first:1) { nodes { databaseId author { login } } } } } } } }' \
+    --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+          | select(.isResolved==false and .comments.nodes[0].author.login=="'$AUTHED_USER'")
+          | [.id, .comments.nodes[0].databaseId, .path, .line] | @tsv'
   # resolve one
   gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<THREAD_ID>"}) { thread { isResolved } } }'
   ```
