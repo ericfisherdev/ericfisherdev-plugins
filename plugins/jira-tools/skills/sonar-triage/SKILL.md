@@ -140,11 +140,11 @@ for t in $(python ${CLAUDE_PLUGIN_ROOT}/skills/search-issues/scripts/search_issu
     --max-results 100 --format json | jq -r '.issues[].key'); do
   python ${CLAUDE_PLUGIN_ROOT}/skills/jira-issue/scripts/fetch_jira_issue.py "$t" \
     --fields description --max-desc 100000 --format json \
-    | jq -r '.description' | sed -n "s/^sonar-rule: /$t /p"
+    | jq -r '.description' | sed -n "s/.*sonar-rule: \([^[:space:]]*\).*/$t \1/p"
 done
 ```
 
-This prints `<KEY> <rule>` for every open sonar ticket. Match on the sentinel below. A rule that already has an open ticket is **skipped**, and
+This prints `<KEY> <rule>` for every open sonar ticket. The `sed` is deliberately unanchored: `fetch_jira_issue.py` joins ADF blocks with no separator, so the first line of the fenced sentinel follows the preceding paragraph on the same output line. Match on the sentinel below. A rule that already has an open ticket is **skipped**, and
 reported as skipped — re-running this command must not litter the backlog with duplicates.
 
 ### A2. Sentinel

@@ -9,7 +9,7 @@
       "name": "jira-tools",
       "source": "./plugins/jira-tools",
       "description": "Jira integration tools for issues, sprints, and agile workflows",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "keywords": ["jira", "atlassian", "issues", "tickets", "workflow", "project-management", "sprint", "agile", "scrum", "backlog", "kanban", "sonarqube"]
     },
     {
