@@ -5,6 +5,28 @@ description: Turn open SonarQube/SonarCloud issues into Jira tickets, or — whe
 
 # Sonar Triage
 
+## Contents
+
+- Rules that hold every time
+- Invocation
+- Phase 0 — Preflight (both modes)
+- Phase 1 — Group before doing anything
+- Mode A — Ticket mode (no `--pr`)
+- Mode B — Fix mode (`--pr <N>` given)
+- Gotchas
+- Files
+
+## Needs
+
+- `curl` — `pacman -S curl` (or your distribution's package)
+- `gh` — `pacman -S github-cli`; authenticated with `gh auth login` (fix mode reads the PR's branch)
+- `jq` — `pacman -S jq` (used by the sentinel key-diff in A2)
+- python3 (3.8+)
+- `SONARQUBE_URL` and `SONARQUBE_TOKEN` environment variables
+- `JIRA_BASE_URL`, `JIRA_EMAIL` and `JIRA_API_TOKEN` environment variables (read by the Jira scripts and by the `curl` call in A5)
+- The jira-tools plugin; this skill calls its scripts through `${CLAUDE_PLUGIN_ROOT}/skills/`: `search-issues/scripts/search_issues.py`, `create-issue/scripts/create_jira_issue.py`, `update-issue/scripts/update_jira_issue.py`, `move-to-sprint/scripts/move_to_sprint.py`, `jira-issue/scripts/fetch_jira_issue.py`
+- `${CLAUDE_PLUGIN_ROOT}/skills/jira-sprint-workflow/scripts/sonar_state.py` — ships with the jira-sprint-workflow skill of the same plugin; provides the `key`, `issues` and `gate` commands
+
 Reads open SonarQube issues and does one of two things with them. **The presence of
 `--pr` is the only thing that decides which.**
 
@@ -15,6 +37,15 @@ Reads open SonarQube issues and does one of two things with them. **The presence
 
 Passing both is a mistake, not a combination: `--pr` wins and Jira is left alone. Say so
 rather than silently filing tickets as well.
+
+## Rules that hold every time
+
+- **Never silently pick one** of the options for test-file findings (exclude, refactor,
+  leave — see Phase 1). Present them and let the user choose. This is the single most
+  common way this command produces unwanted churn.
+- **Never resolve anything in Sonar.** Marking a finding won't-fix, false-positive or
+  safe is a human judgement. This command files tickets and changes code; it never
+  mutates issue state in Sonar. Surface candidates for the user to mark by hand instead.
 
 ## Invocation
 
@@ -40,7 +71,7 @@ rather than silently filing tickets as well.
 0. Resolve the Sonar key if it was not passed explicitly:
 
    ```sh
-   python ~/.claude/skills/jira-sprint-workflow/scripts/sonar_state.py key <REPO_PATH>
+   python ${CLAUDE_PLUGIN_ROOT}/skills/jira-sprint-workflow/scripts/sonar_state.py key <REPO_PATH>
    ```
 
    Exit 1 means the repo carries no `sonar-project.properties` — it is not analysed, so
@@ -51,7 +82,7 @@ rather than silently filing tickets as well.
    API:
 
    ```sh
-   python ~/.claude/skills/jira-sprint-workflow/scripts/sonar_state.py \
+   python ${CLAUDE_PLUGIN_ROOT}/skills/jira-sprint-workflow/scripts/sonar_state.py \
      issues <SONAR_KEY> [--pr <N>] --json
    ```
 
@@ -68,7 +99,7 @@ as final — and in fix mode, never conclude "already fixed" from a single query
 Never treat findings one-per-unit-of-work. Group by `rule`, then split a group only where
 the fix genuinely differs (e.g. same rule, but one instance is in generated code).
 
-Report the grouping before acting:
+Report the grouping before acting. Report format is a default; keep the columns.
 
 ```
 go:S3776  x11  7 files (5 test files)   cognitive complexity
@@ -87,14 +118,9 @@ the options and let the user choose:
 - **refactor** — genuinely worth it when the test is hard to follow
 - **leave** — accept the finding
 
-Never silently pick one. This is the single most common way this command produces
-unwanted churn.
+Never silently pick one — see "Rules that hold every time" at the top.
 
-### Never resolve anything in Sonar
-
-Marking a finding won't-fix, false-positive or safe is a human judgement. This command
-files tickets and changes code; it never mutates issue state in Sonar. Surface candidates
-for the user to mark by hand instead.
+Never resolve anything in Sonar — see "Rules that hold every time" at the top.
 
 ---
 
@@ -107,7 +133,7 @@ One Jira Task **per group**, not per finding.
 Before creating anything, search for an existing ticket for that rule:
 
 ```sh
-python <jira-tools>/skills/search-issues/scripts/search_issues.py \
+python ${CLAUDE_PLUGIN_ROOT}/skills/search-issues/scripts/search_issues.py \
   --jql 'project = <JIRA_KEY> AND labels = sonar AND statusCategory != Done' \
   --fields summary,description --format json
 ```
@@ -146,6 +172,27 @@ finding stays unfiled — and because the totals still add up, nothing looks wro
 filing, verify: read every sentinel back and assert the union of keys equals the set of
 findings, with no duplicates.
 
+Run this key-diff. The first command saves the findings as `{"total": N, "issues": [...]}`;
+the second reads the `sonar-keys:` line out of every ticket's sentinel. List in `TICKETS`
+every ticket filed this run plus every existing ticket reported as skipped:
+
+```sh
+python ${CLAUDE_PLUGIN_ROOT}/skills/jira-sprint-workflow/scripts/sonar_state.py \
+  issues <SONAR_KEY> --json > /tmp/sonar-findings.json
+
+TICKETS="<KEY> <KEY> ..."
+diff <(jq -r '.issues[].key' /tmp/sonar-findings.json | sort) \
+     <(for t in $TICKETS; do
+         python ${CLAUDE_PLUGIN_ROOT}/skills/jira-issue/scripts/fetch_jira_issue.py "$t" \
+           --fields description --max-desc 100000 --format json \
+           | jq -r '.description' | sed -n 's/^sonar-keys: //p' | tr ',' '\n'
+       done | sort)
+```
+
+Empty output means the key sets match. A `<` line is a finding that no sentinel lists; a
+`>` line is a key that is listed twice or that Sonar no longer reports. If any key is
+missing, write its sentinel and re-read; repeat until the two key sets match.
+
 ### A3. Resolve the epic — find it, or create it
 
 Every ticket this command files belongs to a single epic, so Sonar work stays collected
@@ -156,7 +203,7 @@ orphan tickets.
 Look for it first:
 
 ```sh
-python <jira-tools>/skills/search-issues/scripts/search_issues.py \
+python ${CLAUDE_PLUGIN_ROOT}/skills/search-issues/scripts/search_issues.py \
   --jql 'project = <JIRA_KEY> AND issuetype = Epic AND summary ~ "SonarQube" AND statusCategory != Done' \
   --format compact
 ```
@@ -169,7 +216,7 @@ If none exists, create it in the house Epic format — **Description / Acceptanc
 no Implementation Plan:
 
 ```sh
-python <jira-tools>/skills/create-issue/scripts/create_jira_issue.py \
+python ${CLAUDE_PLUGIN_ROOT}/skills/create-issue/scripts/create_jira_issue.py \
   -p <JIRA_KEY> -t Epic -s "SonarQube" --labels sonar,tech-debt -d "<body>"
 ```
 
@@ -206,7 +253,7 @@ because the opening backtick is reached before the underscores inside it.
 
 Do not combine bold with inline code (`**`code`**`) — that yields a bare `INVALID_INPUT`.
 
-Fill the sections from the findings:
+ALWAYS use these three headings in this order. Fill the sections from the findings:
 
 - **Description** — what the rule flags and why it matters here. Name the affected files
   and counts. Do not paste all N messages; they repeat.
@@ -215,10 +262,34 @@ Fill the sections from the findings:
 - **Acceptance Criteria** — testable. Always include: the rule reports zero open findings
   for these paths on the next analysis, and `make test` / `make lint` stay green.
 
+A complete example body, for `php:S1192` (string literal duplicated). Append the A2
+sentinel after it:
+
+````markdown
+## Description
+
+Sonar rule `php:S1192` flags string literals repeated three or more times. It reports 3
+findings in 2 files: `src/Report/ExportController.php` (the `'text/csv'` content type,
+4 times) and `src/Report/ExportService.php` (the `'Content-Type'` header name, 5 times,
+and `'export_failed'`, 3 times). A typo in one copy would silently diverge from the rest.
+
+## Implementation Plan
+
+1. In `ExportController.php`, add `private const CSV_CONTENT_TYPE = 'text/csv';` and use it at lines 41, 58, 77 and 93.
+2. In `ExportService.php`, add `private const HEADER_CONTENT_TYPE = 'Content-Type';` and `private const ERROR_EXPORT_FAILED = 'export_failed';`, then replace the literals at lines 22-96.
+3. Run `make test` and `make lint`.
+
+## Acceptance Criteria
+
+- `php:S1192` reports zero open findings for both files on the next analysis.
+- Behaviour is unchanged: the exported headers and error codes are byte-identical.
+- `make test` and `make lint` stay green.
+````
+
 Create it:
 
 ```sh
-python <jira-tools>/skills/create-issue/scripts/create_jira_issue.py \
+python ${CLAUDE_PLUGIN_ROOT}/skills/create-issue/scripts/create_jira_issue.py \
   -p <JIRA_KEY> -t Task -s "<summary>" -d "<body>" --labels sonar,tech-debt
 ```
 
@@ -242,10 +313,11 @@ Both of these are separate calls: `create_jira_issue.py` sets neither points nor
 A task created but never re-visited is left pointless and orphaned, which is exactly the
 state this step exists to prevent — so verify both landed before reporting success.
 
-With `--sprint`, add the ticket to that sprint:
+With `--sprint`, add the tickets to that sprint:
 
-```
-POST /rest/agile/1.0/sprint/<SPRINT_ID>/issue  {"issues": ["<KEY>", ...]}
+```sh
+python ${CLAUDE_PLUGIN_ROOT}/skills/move-to-sprint/scripts/move_to_sprint.py \
+  <KEY> [<KEY> ...] --sprint-id <SPRINT_ID>
 ```
 
 Without it, leave the ticket in the backlog — do not guess a sprint.
@@ -254,7 +326,12 @@ Without it, leave the ticket in the backlog — do not guess a sprint.
 workflow assigns it when it moves it to `Plan Created`. But a ticket added straight to a
 sprint with `--sprint` skips that planner, so it must arrive assigned and work-ready —
 the same rule Phase 3.5 of `jira-sprint-workflow` follows for security tickets. Pass
-`--assignee "Eric Fisher"` in that case, and move it to `Plan Created` once it has points.
+`--assignee "Eric Fisher"` in that case, and move it to `Plan Created` once it has points:
+
+```sh
+python ${CLAUDE_PLUGIN_ROOT}/skills/update-issue/scripts/update_jira_issue.py <KEY> \
+  --assignee "Eric Fisher" --status "Plan Created"
+```
 
 ### A6. Report
 
@@ -270,7 +347,7 @@ anything you flagged for a human decision.
 ### B1. Scope the findings to the PR
 
 ```sh
-python ~/.claude/skills/jira-sprint-workflow/scripts/sonar_state.py \
+python ${CLAUDE_PLUGIN_ROOT}/skills/jira-sprint-workflow/scripts/sonar_state.py \
   issues <SONAR_KEY> --pr <N> --json
 ```
 
@@ -351,3 +428,9 @@ anything left deliberately unfixed.
 - **Epic membership is the `parent` field**, set the same way:
   `PUT /rest/api/3/issue/<KEY>` with `{"fields":{"parent":{"key":"<EPIC>"}}}`.
 - **Effort is per finding.** Sum a group before converting to points.
+
+---
+
+## Files
+
+- [evals/test-prompts.md](evals/test-prompts.md) — three test prompts and the baseline without the skill.
