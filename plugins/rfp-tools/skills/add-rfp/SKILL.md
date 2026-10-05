@@ -6,13 +6,42 @@ argument-hint: '<pdf|xlsx path or URL> [more paths/URLs...] [--org "Name"] [--sh
 
 # Add an RFP to the requirements research
 
-Pipeline home: `/home/esfisher/dev/literecphp/research/rfp_requirements/` (call it `$P`).
-Sources: `/home/esfisher/dev/literecphp/research/original_files/`. Text: `.../research/markdown_conversion/<stem>/`.
+## Contents
+
+- Needs
+- Rules that hold every time
+- 1. Intake
+- 2. Convert
+- 3. Extract (subagent per RFP, parallel OK)
+- 4. Map (one subagent, sequential — never parallel with other mapping writers)
+- 5. Render and check
+- 6. Report to the user
+- Reference
+
+## Needs
+
+- The pipeline at `~/dev/literecphp/research/rfp_requirements/` (user-specific, not shipped with this skill). It provides `convert.sh`, `xlsx_to_text.py`, `docx_to_text.py`, `module_tool.py`, `render.py`, `check_links.py`, and the docs `README.md`, `EXTRACT.md`, `MAP.md`, plus `modules.json`.
+- python3 (3.8+; the pipeline scripts use only the standard library)
+- `curl` — download RFP files
+- `file` — confirm a download is a PDF/XLSX, not an HTML block page
+- `pdftotext` — layout text and agency lookup; install poppler, e.g. `pacman -S poppler`
+- `marker_single` — PDF to markdown, run by `convert.sh`; `pip install marker-pdf`
+- `llama-server` — llama.cpp server that marker uses (`SURYA_INFERENCE_BACKEND=llamacpp`); `pacman -S llama.cpp`
+- WebSearch tool in Claude Code — find referenced attachments (step 1)
+
+Pipeline home: `~/dev/literecphp/research/rfp_requirements/` (call it `$P`).
+Sources: `~/dev/literecphp/research/original_files/`. Text: `.../research/markdown_conversion/<stem>/`.
 Notes (generated, never hand-edited): vault `LiteRecAdmin/research/RFP Requirements/`.
 
 Before starting, read `$P/README.md`, `$P/EXTRACT.md`, `$P/MAP.md`. They are the source of truth; this
 skill only sequences them. The main session orchestrates and verifies; extraction and mapping run in
 subagents so long RFP text never enters the main context.
+
+## Rules that hold every time
+
+- Verify every generated file yourself before reporting done (see Step 5).
+- Never run the mapping step in parallel with another mapping writer.
+- Snapshot `orgs/<slug>.json` before mapping; restore it if the map step fails.
 
 ## 1. Intake
 
@@ -55,6 +84,8 @@ Pick `slug` (kebab-case) and `short` (uppercase letters/digits) unique against
 Spawn one `general-purpose` subagent per RFP (`model: sonnet`, background; a >100-page RFP gets its own
 agent). Prompt:
 
+Send this prompt verbatim, filling the <placeholders>:
+
 > Extract the software requirements from a park/recreation RFP into structured JSON.
 > Read these two files first and follow them exactly: `$P/EXTRACT.md` (the spec) and `$P/modules.json`
 > (module keys and their scope). Input: `<layout.txt path(s)>` (pdftotext -layout, pages separated by form
@@ -74,7 +105,28 @@ agent). Prompt:
 existing `orgs/<slug>.json`, ids `<SHORT>-<source number>` (add a sheet code if numbering restarts per
 sheet), drop body requirements the attachment now covers more specifically, update
 `requirement_sections` and `notes`. Afterwards the dropped ids leave stale mapping entries —
-`module_tool.py check` lists them as "mapping for X which is not in this module"; delete those entries.
+`module_tool.py check` lists them as "mapping for X which is not in this module". Delete them after
+`validate` passes, with this command (it removes every mapping entry whose id is no longer a requirement
+of that module, and prints what it removed):
+
+```bash
+cd $P && python3 - <<'EOF'
+import glob, json, os
+current = {}
+for path in glob.glob("orgs/*.json"):
+    for r in json.load(open(path))["requirements"]:
+        current.setdefault(r["module"], set()).add(r["id"])
+for path in sorted(glob.glob("mappings/*.json")):
+    module = os.path.basename(path)[:-5]
+    mapping = json.load(open(path))
+    kept = {i: k for i, k in mapping.items() if i in current.get(module, set())}
+    if len(kept) != len(mapping):
+        print(f"{module}: removed {sorted(mapping.keys() - kept.keys())}")
+        with open(path, "w") as f:
+            json.dump(kept, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+EOF
+```
 
 When an agent reports a referenced-but-missing attachment, go back to step 1's search for it.
 
@@ -84,9 +136,43 @@ When an agent reports a referenced-but-missing attachment, go back to step 1's s
 cd $P && python3 module_tool.py validate           # must end "0 problems"
 ```
 
-Then spot-check three random requirements: grep a distinctive phrase from each in the layout text,
-and confirm the id and page are right. Also check the id prefix matches the assigned short; fix
-mechanically with a Python rename if an agent invented its own prefix (Ohio used OHIO- for OH).
+If it reports problems, fix `orgs/<slug>.json` and re-run the validate command until it ends 0 problems.
+
+Then spot-check three random requirements. Replace `<slug>` with the org's slug; the command greps the
+`markdown_conversion/*/*.layout.txt` text (whitespace collapsed, so wrapped lines still match) for a
+five-word run from each requirement's `text`, and checks that run against the page in its `page` field:
+
+```bash
+export P=~/dev/literecphp/research/rfp_requirements
+python3 - <slug> <<'EOF'
+import glob, json, os, random, sys
+
+def squash(text):
+    return " ".join(text.split())
+
+slug = sys.argv[1]
+root = os.path.expanduser(os.environ["P"])
+reqs = json.load(open(f"{root}/orgs/{slug}.json"))["requirements"]
+docs = [
+    [squash(page) for page in open(path, errors="replace").read().split("\f")]
+    for path in glob.glob(f"{root}/../markdown_conversion/*/*.layout.txt")
+]
+for req in random.sample(reqs, min(3, len(reqs))):
+    words = squash(req["text"]).split()
+    windows = [" ".join(words[i:i + 5]) for i in range(max(1, len(words) - 4))]
+    phrase = next((w for w in windows if any(w in page for d in docs for page in d)), None)
+    on_page = phrase and req["page"] and any(
+        len(d) >= req["page"] and phrase in d[req["page"] - 1] for d in docs
+    )
+    status = "MISS" if phrase is None else ("OK  " if on_page or req["page"] is None else "PAGE")
+    print(f"{status} {req['id']} p.{req['page']}: {phrase or squash(req['text'])[:60]}")
+EOF
+```
+
+All three must print `OK`. On `MISS` (text not found in any layout file) or `PAGE` (found, but not on the
+stated page), re-extract that requirement and re-run. A `page` of null (xlsx rows) skips the page check.
+Also check the id prefix matches the assigned short; fix mechanically with a Python rename if an agent
+invented its own prefix (Ohio used OHIO- for OH).
 
 ## 4. Map (one subagent, sequential — never parallel with other mapping writers)
 
@@ -94,6 +180,8 @@ Snapshot first: `cp $P/common_features.csv <scratchpad>/common_features.before.c
 `tar czf <scratchpad>/rfp_data_before.tgz -C $P orgs catalog mappings`.
 
 Spawn one `general-purpose` agent (default model; judgment matters here). Prompt:
+
+Send this prompt verbatim, filling the <placeholders>:
 
 > Map newly added RFP requirements into the canonical feature catalog.
 > Working dir `$P`. Read MAP.md (spec, Tools, Rules, "Adding an RFP later") and modules.json first.
@@ -121,8 +209,11 @@ cd $P && python3 render.py && python3 check_links.py
 ```
 
 `render.py` must print no `WARNING`; `check_links.py` must report `0 broken`.
+If any note is missing or stale, re-run the render step and re-check.
 
 ## 6. Report to the user
+
+Report in this shape (default; add rows, do not drop them):
 
 - Per new RFP: requirement count, how many are shared with at least one other RFP (note frontmatter
   `shared_requirement_count`), note name (`<SHORT> RFP`).
@@ -133,3 +224,7 @@ cd $P && python3 render.py && python3 check_links.py
 - Marker conversion status (still running in background, or done).
 
 If anything fails midway, the tarball from step 4 restores `orgs/`, `catalog/` and `mappings/`.
+
+## Reference
+
+- [evals/test-prompts.md](evals/test-prompts.md) — three test prompts and the baseline without the skill.
