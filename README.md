@@ -25,8 +25,6 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
-| [pixel-art-tools](#pixel-art-tools) | Design pixel art sprites as JSON grids and render them to PNG | 1.0.0 |
-| [rfp-tools](#rfp-tools) | Add park and recreation software RFPs to cross-linked requirements research | 1.0.0 |
 
 ---
 
@@ -258,36 +256,6 @@ Works a Plane project's backlog one task at a time, each carried from plan to me
 
 **Requirements:**
 - `glab` (repos are on GitLab), Python 3.8+; see the skill's `## Needs` section
-
----
-
-### pixel-art-tools
-
-Claude designs pixel art as a JSON grid and renders it to PNG with a bundled script; no external API.
-
-**Skills:**
-
-| Skill | Description |
-|-------|-------------|
-| `/pixel-art-gen` | Create, preview, and revise pixel art sprites |
-
-**Requirements:**
-- Python 3.8+ and `pip install Pillow`
-
----
-
-### rfp-tools
-
-Adds park and recreation software RFPs to a cross-linked requirements research set: extracts requirements, maps them to a shared feature catalog, and re-renders the Obsidian notes.
-
-**Skills:**
-
-| Skill | Description |
-|-------|-------------|
-| `/add-rfp` | Add one or more RFPs to the requirements research and re-render every note |
-
-**Requirements:**
-- A local RFP pipeline checkout; see the skill's `## Needs` section
 
 ---
 
