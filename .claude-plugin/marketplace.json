@@ -53,6 +53,13 @@
       "description": "Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane",
       "version": "1.1.0",
       "keywords": ["music", "youtube-music", "spotify", "winamp", "mpv", "pane", "hooks", "mod", "quality-of-life"]
+    },
+    {
+      "name": "architecture-tools",
+      "source": "./plugins/architecture-tools",
+      "description": "Full architecture, behavioral, and forensic code analysis that writes numbered markdown documents for a repository or mono-repo subdirectory",
+      "version": "1.0.0",
+      "keywords": ["architecture", "analysis", "documentation", "security-audit", "hotspots", "git-forensics", "code-quality"]
     }
   ]
 }

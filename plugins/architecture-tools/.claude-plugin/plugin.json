@@ -1,0 +1,18 @@
+{
+  "name": "architecture-tools",
+  "version": "1.0.0",
+  "description": "Full architecture, behavioral, and forensic code analysis that writes numbered markdown documents for a repository or mono-repo subdirectory",
+  "author": {
+    "name": "ericfisherdev"
+  },
+  "license": "MIT",
+  "keywords": [
+    "architecture",
+    "analysis",
+    "documentation",
+    "security-audit",
+    "hotspots",
+    "git-forensics",
+    "code-quality"
+  ]
+}

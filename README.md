@@ -27,6 +27,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.0 |
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
+| [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.0 |
 
 ---
 
@@ -319,6 +320,31 @@ A mod (function-hooks plugin) that plays a YouTube Music or Spotify playlist onc
 - Claude Code 2.1.296 or later (function hooks), Linux, Python 3
 - YouTube Music: `mpv` and `yt-dlp`
 - Spotify: Premium, a Spotify developer app's client id, and an open Spotify client
+
+---
+
+### architecture-tools
+
+Runs a 33-section analysis of a repository (or one mono-repo subdirectory) and writes each section as its own numbered markdown file, plus an index. Covers architecture (API, database, auth, dependencies, events, deployment, security), behavioral git analysis (hotspots, change coupling, bus factor, churn), and forensic analysis (code age, defect prediction, Conway's Law, code city).
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/full-analysis` | Run all 33 analyses in order into `.analysis/full/` (or `.analysis/full/<subdirectory>/`) with an index |
+
+**Usage Examples:**
+
+```bash
+# Whole repository
+/full-analysis
+
+# One subdirectory of a mono-repo
+/full-analysis apps/frontend
+```
+
+**Requirements:**
+- `git` with history; authenticated `gh` CLI for the PR complexity section only (skipped without it)
 
 ---
 
