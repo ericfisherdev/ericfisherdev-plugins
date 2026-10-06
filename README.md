@@ -25,6 +25,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
+| [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.0 |
 
 ---
 
@@ -256,6 +257,31 @@ Works a Plane project's backlog one task at a time, each carried from plan to me
 
 **Requirements:**
 - `glab` (repos are on GitLab), Python 3.8+; see the skill's `## Needs` section
+
+---
+
+### architecture-tools
+
+Runs a 33-section analysis of a repository (or one mono-repo subdirectory) and writes each section as its own numbered markdown file, plus an index. Covers architecture (API, database, auth, dependencies, events, deployment, security), behavioral git analysis (hotspots, change coupling, bus factor, churn), and forensic analysis (code age, defect prediction, Conway's Law, code city).
+
+**Skills:**
+
+| Skill | Description |
+|-------|-------------|
+| `/full-analysis` | Run all 33 analyses in order into `.analysis/full/` (or `.analysis/full/<subdirectory>/`) with an index |
+
+**Usage Examples:**
+
+```bash
+# Whole repository
+/full-analysis
+
+# One subdirectory of a mono-repo
+/full-analysis apps/frontend
+```
+
+**Requirements:**
+- `git` with history; authenticated `gh` CLI for the PR complexity section only (skipped without it)
 
 ---
 
