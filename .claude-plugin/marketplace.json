@@ -39,6 +39,13 @@
       "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
       "version": "1.0.1",
       "keywords": ["plane", "gitlab", "workflow", "backlog", "automation", "subagents"]
+    },
+    {
+      "name": "noto-mode",
+      "source": "./plugins/noto-mode",
+      "description": "Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you",
+      "version": "1.0.0",
+      "keywords": ["permissions", "auto-mode", "auto-approve", "classifier", "prompts", "hooks", "mod", "workflow", "quality-of-life"]
     }
   ]
 }
