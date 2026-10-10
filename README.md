@@ -25,6 +25,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
+| [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.0 |
 
 ---
 
@@ -256,6 +257,34 @@ Works a Plane project's backlog one task at a time, each carried from plan to me
 
 **Requirements:**
 - `glab` (repos are on GitLab), Python 3.8+; see the skill's `## Needs` section
+
+---
+
+### noto-mode
+
+A mod (function-hooks plugin) for accounts that cannot use auto mode. It hooks the engine's permission verdict and turns only would-be prompts into approvals, following auto mode's documented order: read-only actions and edits inside the project are allowed by rule; auto mode's block list (sudo, download-and-execute, force pushes, history rewrites, deleting critical paths, infra and cloud changes, deploys, registry repointing, tunnels, safety-disarming flags, credential printing) is never approved by the mod; everything else is judged by a small model with your recent messages. Every prompt that still reaches you carries a line saying why, and what to change so the same call passes next time (the exact `permissions.allow` rule, `/add-dir`, or the classifier switch).
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/noto-mode` | Counts, classifier settings and the last 30 decisions with their reasons |
+
+**Features:**
+- Deny, allow and ask rules, managed settings and PreToolUse hooks all keep their say
+- Status line entry (`noto ✓12 ?3`) and a toast per classifier approval
+- Options in `/config` › noto-mode: `classifier` on/off, `model` (default `haiku`), `timeoutMs`, `quiet`
+- Conservative by design: anything the shell splitter cannot read goes to the classifier, never to allow
+
+**Install:**
+
+```bash
+/plugin install noto-mode --marketplace ericfisherdev/ericfisherdev-plugins
+```
+
+**Requirements:**
+- Claude Code 2.1.296 or later (function hooks)
+- Not for sessions that already run auto mode: the mod approves before the auto-mode classifier runs
 
 ---
 
