@@ -17,6 +17,27 @@ const REMOTE = set('ssh scp rsync sftp')
 const nonFlags = (args: readonly string[]): string[] => args.filter(a => !a.startsWith('-') || a === '-')
 
 /**
+ * Whether `a` spells the long option `name`, alone or as `name=value`, in full
+ * or by a prefix: getopt_long and git's parse-options accept any unambiguous
+ * prefix, so `--expr` is `--expression`. Ambiguous prefixes match too; the tool
+ * refuses those, so the match only errs toward the classifier.
+ */
+const longOpt = (a: string, name: string): boolean => {
+  const spelled = a.split('=', 1)[0] as string
+  return spelled.length > 2 && spelled.startsWith('--') && name.startsWith(spelled)
+}
+
+/**
+ * The options before the first operand or `--`. A switch that disarms a check
+ * (`--sandbox`) counts only here: after `--`, or after awk's program text,
+ * the tool reads it as a file name.
+ */
+const leadingOptions = (rest: readonly string[]): readonly string[] => {
+  const end = rest.findIndex(a => a === '--' || !a.startsWith('-') || a === '-')
+  return end === -1 ? rest : rest.slice(0, end)
+}
+
+/**
  * Variables that only tune output, locale or logging. Any other assignment
  * (PAGER, GIT_*, LD_PRELOAD, BASH_ENV, NODE_OPTIONS, PATH, ...) can change
  * which program a command runs, so it goes to the classifier.
@@ -145,7 +166,7 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return rest.some(a => /^-(delete|exec|execdir|ok|okdir|fprint|fls|fprintf)$/.test(a)) ? classify('a find that deletes or executes') : allow('find is read-only')
   }
   if (cmd === 'sed' || cmd === 'yq') {
-    if (rest.some(a => /^-[a-zA-Z]*i|^--in-place/.test(a))) return classify(`an in-place ${cmd} edit`)
+    if (rest.some(a => /^-[a-zA-Z]*i/.test(a) || longOpt(a, '--in-place') || longOpt(a, '--inplace'))) return classify(`an in-place ${cmd} edit`)
     if (cmd === 'sed' && sedRunsOrWrites(rest)) return classify('a sed script that runs commands or writes files')
     return allow(`${cmd} prints`)
   }
@@ -196,10 +217,10 @@ function sedScripts(rest: readonly string[]): string[] {
   let operand: string | undefined
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i] as string
-    if (a.startsWith('--expression=')) scripts.push(a.slice('--expression='.length))
-    else if (a === '--expression' || /^-[a-zA-Z]*e$/.test(a)) scripts.push(rest[++i] ?? '')
+    if (longOpt(a, '--expression') && a.includes('=')) scripts.push(a.slice(a.indexOf('=') + 1))
+    else if (longOpt(a, '--expression') || /^-[a-zA-Z]*e$/.test(a)) scripts.push(rest[++i] ?? '')
     else if (/^-[a-zA-Z]*e./.test(a)) scripts.push(a.slice(a.indexOf('e') + 1))
-    else if (a === '-l' || a === '--line-length') i++
+    else if (a === '-l' || (longOpt(a, '--line-length') && !a.includes('='))) i++
     else if (operand === undefined && (!a.startsWith('-') || a === '-')) operand = a
   }
   return scripts.length > 0 ? scripts : operand === undefined ? [] : [operand]
@@ -209,11 +230,11 @@ function sedScripts(rest: readonly string[]): string[] {
  * Whether sed may run a command (`e`, the `s///e` flag) or write a file (`w`,
  * `W`, the `s///w` flag). Patterns and replacements are blanked first so a `w`
  * inside `s/word/x/` does not count; text after `a`, `i` or `c` still does,
- * which errs toward the classifier. `--sandbox` disables all of them.
+ * which errs toward the classifier. A leading `--sandbox` disables all of them.
  */
 function sedRunsOrWrites(rest: readonly string[]): boolean {
-  if (rest.includes('--sandbox')) return false
-  if (rest.some(a => /^(-[a-zA-Z]*f|--file)/.test(a))) return true
+  if (leadingOptions(rest).includes('--sandbox')) return false
+  if (rest.some(a => /^-[a-zA-Z]*f/.test(a) || longOpt(a, '--file'))) return true
   return sedScripts(rest).some(script => {
     const commands = script
       .replace(/s(.)(?:\\.|(?!\1)[^\\])*\1(?:\\.|(?!\1)[^\\])*\1/g, 's')
