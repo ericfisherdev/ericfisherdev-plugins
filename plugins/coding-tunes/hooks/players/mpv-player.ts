@@ -39,7 +39,7 @@ export class MpvPlayer implements MusicPlayer {
     const argv = ['flock', this.paths.lock, ...this.helperArgv('ensure', url, source === null ? '' : cookieSpec(source))]
     const result = await this.runner.run(argv, START_TIMEOUT_MS)
     if (result.exitCode === EXIT_MISSING_DEPENDENCY) {
-      throw new PlayerError('missing-dependency', `${result.stderr.trim()}: run sudo pacman -S mpv yt-dlp`)
+      throw new PlayerError('missing-dependency', `${result.stderr.trim()}: install mpv and yt-dlp with your package manager`)
     }
     if (result.exitCode !== 0) throw new PlayerError('unavailable', 'mpv did not start')
   }

@@ -33,7 +33,7 @@ Answer `y` to add the marketplace and pick a scope. Requires Claude Code 2.1.296
 
 ### YouTube Music
 
-Needs `mpv` and `yt-dlp` (`sudo pacman -S mpv yt-dlp` on Arch). One detached `mpv` plays for every session and quits when the last session ends.
+Needs `mpv` and `yt-dlp` from your package manager (for example `sudo pacman -S mpv yt-dlp` on Arch, `sudo apt install mpv yt-dlp` on Debian or Ubuntu). One detached `mpv` plays for every session and quits when the last session ends. If the last session crashes instead of ending, `mpv` keeps playing until the next session starts and pauses it, or until `/coding-tunes --stop`.
 
 Private playlists need a browser's YouTube login: run `/coding-tunes --setup`, choose YouTube Music, and pick the browser you are signed in with. Firefox-family browsers (Zen, Firefox, LibreWolf, Floorp) are found by their default profile; Chromium-family ones (Chrome, Brave, Chromium, Vivaldi, Edge, Opera) may ask you to unlock your keyring. Without a browser login only public playlists open, and a playlist YouTube refuses shows an error in the pane.
 

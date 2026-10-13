@@ -83,7 +83,7 @@ const dependencyCheck = (runner: CommandRunner, auth: SpotifyAuth): DependencyCh
     }
     const missing = await missingTools(runner, ['mpv', 'yt-dlp'])
 
-    return missing.length === 0 ? undefined : `YouTube Music needs ${missing.join(' and ')}: sudo pacman -S ${missing.join(' ')}`
+    return missing.length === 0 ? undefined : `YouTube Music needs ${missing.join(' and ')}: install ${missing.join(' and ')} with your package manager`
   },
 })
 
