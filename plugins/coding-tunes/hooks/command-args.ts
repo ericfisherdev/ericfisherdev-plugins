@@ -43,7 +43,7 @@ export const extractPlaylistId = (text: string): string | undefined => {
   return PLAYLIST_ID.test(fromText) ? fromText : undefined
 }
 
-const readFlags =(tokens: readonly string[]): Flags | string => {
+const readFlags = (tokens: readonly string[]): Flags | string => {
   const flags: Flags = new Map()
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index] ?? ''
