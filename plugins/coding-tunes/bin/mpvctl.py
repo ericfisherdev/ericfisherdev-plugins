@@ -82,10 +82,17 @@ def start(sock_path, url, cookies):
     sys.exit(NOT_RUNNING)
 
 
+def has_failed(sock_path):
+    # Idle with entries queued means the playlist URL failed to open.
+    return get(sock_path, "idle-active") is True and (get(sock_path, "playlist-count") or 0) > 0
+
+
 def ensure(sock_path, url, cookies):
     if not is_running(sock_path):
         start(sock_path, url, cookies)
-    elif (get(sock_path, "user-data/coding-tunes/url"), get(sock_path, "user-data/coding-tunes/cookies")) != (url, cookies):
+    elif has_failed(sock_path) or (
+        get(sock_path, "user-data/coding-tunes/url"), get(sock_path, "user-data/coding-tunes/cookies")
+    ) != (url, cookies):
         send(sock_path, ["set_property", "ytdl-raw-options", raw_options(cookies)])
         send(sock_path, ["loadfile", url, "replace"])
         send(sock_path, ["set_property", "pause", True])
@@ -95,13 +102,11 @@ def ensure(sock_path, url, cookies):
 
 def status(sock_path):
     elapsed = get(sock_path, "time-pos")
-    # Idle with entries queued means the playlist URL failed to open.
-    has_failed = get(sock_path, "idle-active") is True and (get(sock_path, "playlist-count") or 0) > 0
     print(json.dumps({
         "track": get(sock_path, "media-title") or "",
         "isPlaying": get(sock_path, "pause") is False,
         "elapsedSeconds": int(elapsed) if isinstance(elapsed, (int, float)) else None,
-        "hasFailed": has_failed,
+        "hasFailed": has_failed(sock_path),
     }))
 
 

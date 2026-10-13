@@ -87,6 +87,23 @@ describe('playlist errors', () => {
     await host.clock.advance(3_000)
     expect(host.toasts.some(text => text.includes('could not open the playlist'))).toBe(true)
   })
+
+  test('a failed playlist is loaded again once YouTube serves it, after a 30 s wait', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    await $.turn.start({ text: 'long job', turnId: 'turn-1' })
+    host.failPlaylist()
+    await host.clock.advance(3_000)
+    const ensuresAtFailure = host.ensureArgs.length
+
+    await host.clock.advance(15_000)
+    expect(host.ensureArgs.length).toBe(ensuresAtFailure)
+
+    host.restorePlaylist()
+    await host.clock.advance(18_000)
+    expect(host.ensureArgs.length).toBeGreaterThan(ensuresAtFailure)
+    expect(host.isMpvPlaying()).toBe(true)
+  })
 })
 
 describe('shared player across sessions', () => {

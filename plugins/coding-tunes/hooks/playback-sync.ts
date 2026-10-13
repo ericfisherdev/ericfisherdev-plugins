@@ -7,6 +7,9 @@ import type { SessionActivity } from './session-activity'
 
 export type SessionIdentity = { sessionId: string; label: string }
 
+/** How long a failed load waits before the player is asked to load again. */
+export const LOAD_RETRY_MS = 30_000
+
 /**
  * Keeps the shared player in step with every session's activity: publishes
  * this session's record, applies the shared play/pause rule on each change of
@@ -17,6 +20,7 @@ export class PlaybackSync {
   private loadedKey: string | null = null
   private appliedDecision: boolean | null = null
   private lastNotice: string | null = null
+  private retryLoadAt = 0
   private frame = 0
 
   constructor(
@@ -40,6 +44,7 @@ export class PlaybackSync {
   forceReload(): void {
     this.loadedKey = null
     this.appliedDecision = null
+    this.retryLoadAt = 0
   }
 
   /** The current decision, for user controls that must respect holds. */
@@ -64,9 +69,10 @@ export class PlaybackSync {
     const records = await this.board.records()
     const intent = await this.board.readIntent()
     const decision = decidePlayback(intent, records, now)
-    const playing = intent?.isEnabled === true ? await this.drive(intent, decision) : null
+    const isWaitingToRetry = this.loadedKey === null && now < this.retryLoadAt
+    const playing = intent?.isEnabled === true && !isWaitingToRetry ? await this.drive(intent, decision) : null
     await this.board.prune(records, now)
-    await this.showSnapshot(intent, decision, playing, null)
+    await this.showSnapshot(intent, decision, playing, isWaitingToRetry ? this.lastNotice : null)
   }
 
   private async drive(intent: PlayerIntent, decision: PlaybackDecision): Promise<NowPlaying | null> {
@@ -95,6 +101,7 @@ export class PlaybackSync {
     if (notice !== this.lastNotice) this.notifier.notify(notice)
     this.lastNotice = notice
     this.loadedKey = null
+    this.retryLoadAt = (await this.clock.now().catch(() => 0)) + LOAD_RETRY_MS
     const intent = await this.board.readIntent().catch(() => undefined)
     await this.showSnapshot(intent, { shouldPlay: false, holder: null }, null, notice).catch(() => undefined)
   }
