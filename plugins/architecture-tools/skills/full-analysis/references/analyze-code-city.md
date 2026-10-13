@@ -51,8 +51,13 @@ awk '{ match($0, /^[ \t]*/); depth += RLENGTH } END { if (NR>0) print depth/NR }
 For each neighborhood, compute the "crime rate" — the density of defect-related activity:
 
 ```bash
-git log --since="{since}" --format="%s" --name-only | grep -A1 -iE "fix|bug|patch|hotfix|revert"
+git log --since="{since}" --format="HASH:%H MSG:%s" --name-only | awk '
+  /^HASH:/ { is_fix = (tolower($0) ~ /fix|bug|patch|hotfix|revert/); next }
+  NF && is_fix { print }
+'
 ```
+
+The flag is set from the commit header only, so a file path such as `src/debug.ts` never counts as a fix, and every file line under a fix commit is printed (the same parser as `analyze-defect-prediction.md`).
 
 **Crime rate tiers:**
 | Bug Fix Ratio | Crime Rate | Visualization |
