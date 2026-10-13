@@ -137,6 +137,10 @@ test('awk programs that run commands, read their output or write files go to the
 
 test('sort with a compression program goes to the classifier', () => {
   expect(sh('sort --compress-program=/tmp/evil big.txt')).toBe('classify')
+  expect(sh('sort --co=./evil.sh -S 64k big.txt')).toBe('classify')
+  expect(sh('sort --out=/tmp/x big.txt')).toBe('classify')
+  expect(sh('sort -o/tmp/x big.txt')).toBe('classify')
+  expect(sh('sort -o sorted.txt big.txt')).toBe('allow')
   expect(sh('sort -u names.txt')).toBe('allow')
 })
 
