@@ -8,7 +8,7 @@ import { SessionActivity } from '../hooks/session-activity'
 import { clockText, marquee } from '../hooks/winamp-view'
 
 const NOW = 1_000_000
-const INTENT: PlayerIntent = { isEnabled: true, player: 'ytmusic', playlistId: 'PLabc', override: 'none' }
+const INTENT: PlayerIntent = { isEnabled: true, player: 'ytmusic', playlistId: 'PLabc' }
 
 const record = (overrides: Partial<SessionRecord>): SessionRecord => ({
   sessionId: 'a',
@@ -56,8 +56,8 @@ describe('parseTunesArgs', () => {
 
 describe('decidePlayback', () => {
   test('plays only once some session has worked for 10 seconds', () => {
-    expect(decidePlayback(INTENT, [record({ workingSince: NOW - 9_000 })], NOW).shouldPlay).toBe(false)
-    expect(decidePlayback(INTENT, [record({ workingSince: NOW - 10_000 })], NOW).shouldPlay).toBe(true)
+    expect(decidePlayback(INTENT, 'none', [record({ workingSince: NOW - 9_000 })], NOW).shouldPlay).toBe(false)
+    expect(decidePlayback(INTENT, 'none', [record({ workingSince: NOW - 10_000 })], NOW).shouldPlay).toBe(true)
   })
 
   test("any session's pending input holds the player paused, even against a forced play", () => {
@@ -65,7 +65,7 @@ describe('decidePlayback', () => {
       record({ sessionId: 'a', workingSince: NOW - 60_000 }),
       record({ sessionId: 'b', label: 'other#bbbb', holdReason: 'question' }),
     ]
-    const decision = decidePlayback({ ...INTENT, override: 'playing' }, records, NOW)
+    const decision = decidePlayback(INTENT, 'playing', records, NOW)
     expect(decision.shouldPlay).toBe(false)
     expect(decision.holder?.label).toBe('other#bbbb')
   })
@@ -75,13 +75,13 @@ describe('decidePlayback', () => {
       record({ sessionId: 'a', workingSince: NOW - 60_000 }),
       record({ sessionId: 'dead', holdReason: 'permission', heartbeatAt: NOW - STALE_AFTER_MS - 1 }),
     ]
-    expect(decidePlayback(INTENT, records, NOW)).toEqual({ shouldPlay: true, holder: null })
+    expect(decidePlayback(INTENT, 'none', records, NOW)).toEqual({ shouldPlay: true, holder: null })
   })
 
   test('a paused override wins over work; no intent never plays', () => {
     const working = [record({ workingSince: NOW - 60_000 })]
-    expect(decidePlayback({ ...INTENT, override: 'paused' }, working, NOW).shouldPlay).toBe(false)
-    expect(decidePlayback(undefined, working, NOW).shouldPlay).toBe(false)
+    expect(decidePlayback(INTENT, 'paused', working, NOW).shouldPlay).toBe(false)
+    expect(decidePlayback(undefined, 'none', working, NOW).shouldPlay).toBe(false)
   })
 })
 

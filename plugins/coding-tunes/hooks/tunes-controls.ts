@@ -26,7 +26,8 @@ export class TunesControls {
   async start(player: PlayerKind, playlistId: string): Promise<ControlOutcome> {
     const previous = await this.board.readIntent()
     if (previous?.isEnabled === true && previous.player !== player) await this.players[previous.player].shutdown()
-    await this.board.writeIntent({ isEnabled: true, player, playlistId, override: 'none' })
+    await this.board.writeIntent({ isEnabled: true, player, playlistId })
+    await this.board.writeOverride('none')
     this.sync.forceReload()
     await this.sync.reconcile()
 
@@ -76,15 +77,14 @@ export class TunesControls {
 
   /** A pause lasts until a turn starts; a forced play until a turn ends. */
   async clearOverride(expired: PlaybackOverride): Promise<void> {
-    const intent = await this.board.readIntent()
-    if (intent?.override !== expired) return
-    await this.board.writeIntent({ ...intent, override: 'none' })
+    if ((await this.board.readOverride()) !== expired) return
+    await this.board.writeOverride('none')
   }
 
   private async setOverride(override: PlaybackOverride): Promise<ControlOutcome> {
     const intent = await this.board.readIntent()
     if (intent === undefined || !intent.isEnabled) return { isDone: false, reason: 'Start a playlist with /coding-tunes first.' }
-    await this.board.writeIntent({ ...intent, override })
+    await this.board.writeOverride(override)
     await this.sync.reconcile()
 
     return DONE

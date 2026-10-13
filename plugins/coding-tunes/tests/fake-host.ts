@@ -10,6 +10,8 @@ export const START_TIME = 5_000_000
 export type FakeHost = {
   clock: MockClock
   files: Map<string, string>
+  /** Every path written, in order. */
+  writtenPaths: string[]
   /** Every mpvctl command sent, in order (`ensure`, `play`, `pause`, ...). */
   mpvCommands: string[]
   /** The arguments after `ensure`: the playlist URL and the cookie spec. */
@@ -27,6 +29,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
   mock.store(on, storeEntries)
   mock.env(on, { XDG_RUNTIME_DIR: RUNTIME_DIR })
   const files = new Map<string, string>()
+  const writtenPaths: string[] = []
   const mpvCommands: string[] = []
   const ensureArgs: string[][] = []
   const toasts: string[] = []
@@ -48,6 +51,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
 
   on('fs.write', ($, e) => {
     files.set(e.path, e.text)
+    writtenPaths.push(e.path)
     return { value: undefined }
   })
   on('fs.read', ($, e) => {
@@ -75,7 +79,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
 
-  return { clock, files, mpvCommands, ensureArgs, toasts, isMpvPlaying: () => isPlaying, failPlaylist: () => {
+  return { clock, files, writtenPaths, mpvCommands, ensureArgs, toasts, isMpvPlaying: () => isPlaying, failPlaylist: () => {
       isPlaylistRefused = true
       hasFailed = true
     },
