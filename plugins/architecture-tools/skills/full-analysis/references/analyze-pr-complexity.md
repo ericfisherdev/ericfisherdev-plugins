@@ -39,7 +39,7 @@ For each commit, extract co-changed file sets. Build a co-change frequency map f
 
 #### c. Churn data
 ```bash
-git log --since="6 months ago" --numstat --format="" | awk '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f]+deleted[f], f }' | sort -rn | head -30
+git log --since="6 months ago" --numstat --no-renames --format="" | awk -F'\t' '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f]+deleted[f], f }' | sort -rn | head -30
 ```
 Tag the top 20% as "high-churn files."
 
