@@ -84,6 +84,12 @@ test('sed scripts that run commands or write files go to the classifier', () => 
   expect(sh(`sed -ne '1e id' README.md`)).toBe('classify')
   expect(sh(`sed --expression='w /tmp/out' README.md`)).toBe('classify')
   expect(sh('sed -f script.sed README.md')).toBe('classify')
+  expect(sh(`sed -n --expr='1e id' README.md`)).toBe('classify')
+  expect(sh(`sed -n --e '1e id' README.md`)).toBe('classify')
+  expect(sh('sed -n --fi=x.sed README.md')).toBe('classify')
+  expect(sh(`sed -- '1e id' README.md --sandbox`)).toBe('classify')
+  expect(sh(`sed -n --in s/a/b/ README.md`)).toBe('classify')
+  expect(sh(`yq --inplace '.a = 1' conf.yaml`)).toBe('classify')
 })
 
 test('sed that only prints or substitutes stays allowed', () => {
@@ -91,6 +97,7 @@ test('sed that only prints or substitutes stays allowed', () => {
   expect(sh(`sed 's/word/were/g' README.md`)).toBe('allow')
   expect(sh(`sed -e '/^$/d' -e 's|/usr/www|/srv|' conf.txt`)).toBe('allow')
   expect(sh(`sed --sandbox 'w out' README.md`)).toBe('allow')
+  expect(sh(`sed -n --expr='1,5p' README.md`)).toBe('allow')
 })
 
 test('awk programs that run commands, read their output or write files go to the classifier', () => {
