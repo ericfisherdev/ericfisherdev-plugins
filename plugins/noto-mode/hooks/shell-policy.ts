@@ -245,11 +245,40 @@ function sedRunsOrWrites(rest: readonly string[]): boolean {
   })
 }
 
-/** Whether an awk program may run a command, read its output or write a file. `--sandbox` (gawk) forbids all three. */
+/**
+ * The text awk may run as program: each -e/--source value and every operand
+ * (file names and assignments are scanned too, which errs toward the
+ * classifier). -v and -F values are data, so they are skipped.
+ */
+function awkPrograms(rest: readonly string[]): string[] {
+  const texts: string[] = []
+  const isData = (a: string): boolean => longOpt(a, '--assign') || longOpt(a, '--field-separator')
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a === '--') {
+      texts.push(...rest.slice(i + 1))
+      break
+    }
+    if (a === '-v' || a === '-F' || (isData(a) && !a.includes('='))) i++
+    else if (/^-[vF]/.test(a) || isData(a)) continue
+    else if (longOpt(a, '--source')) texts.push(a.includes('=') ? a.slice(a.indexOf('=') + 1) : (rest[++i] ?? ''))
+    else if (/^-[a-zA-Z]*e/.test(a)) texts.push(a.slice(a.indexOf('e') + 1) || (rest[++i] ?? ''))
+    else if (!a.startsWith('-') || a === '-') texts.push(a)
+  }
+  return texts
+}
+
+const AWK_PROGRAM_FILE_OPTIONS = ['--file', '--exec', '--include', '--load']
+
+/**
+ * Whether an awk program may run a command, read its output, write a file or
+ * pull in another program (`@include`, `@load`, -f, -i, -l). A leading
+ * `--sandbox` (gawk) forbids all of them.
+ */
 function awkRunsOrWrites(rest: readonly string[]): boolean {
-  if (rest.includes('--sandbox')) return false
-  if (rest.some(a => /^(-[a-zA-Z]*[fEil]|--file|--exec|--include|--load)/.test(a) && !/^-[vF]/.test(a))) return true
-  return nonFlags(rest).some(a => /\||getline|system\s*\(|close\s*\(|>/.test(a))
+  if (leadingOptions(rest).includes('--sandbox')) return false
+  if (rest.some(a => (/^-[a-zA-Z]*[fEil]/.test(a) && !/^-[vF]/.test(a)) || AWK_PROGRAM_FILE_OPTIONS.some(n => longOpt(a, n)))) return true
+  return awkPrograms(rest).some(a => /\||getline|system\s*\(|close\s*\(|>|@(include|load)\b/.test(a))
 }
 
 function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => Decision): Decision {
