@@ -547,6 +547,9 @@ function judgePackage(cmd: string, rest: string[], again: (argv: string[]) => De
   }
 }
 
+/** npx options that only answer prompts or quiet output. */
+const NPX_SWITCHES = /^(-y|--yes|--no|--no-install|-q|--quiet|--silent|--ignore-existing)$/
+
 function judgeNpx(rest: string[], again: (argv: string[]) => Decision): Decision {
   let i = 0
   while (i < rest.length) {
@@ -555,10 +558,10 @@ function judgeNpx(rest: string[], again: (argv: string[]) => Decision): Decision
       i++
       break
     }
-    if (/^(-p|--package|-c|--call)$/.test(a)) {
-      i += 2
-      continue
-    }
+    // -p installs a package other than the tool named; -c runs a shell string.
+    if (/^(-p|--package|-c|--call)(=.*)?$/.test(a)) return classify(`npx ${a.replace(/=.*$/, '')} installs another package or runs a shell string`)
+    // Anything else that takes a value (--registry, --prefix, --userconfig, ...) can point npx at another copy of the tool.
+    if (a.startsWith('-') && !NPX_SWITCHES.test(a)) return classify(`npx ${a.replace(/=.*$/, '')} changes where the tool comes from`)
     if (a.startsWith('-')) {
       i++
       continue
@@ -567,7 +570,11 @@ function judgeNpx(rest: string[], again: (argv: string[]) => Decision): Decision
   }
   const tool = rest[i]
   if (tool === undefined) return classify('npx with no tool')
-  const name = tool.replace(/^(@[^/]+\/)?([^@]+)(@.*)?$/, '$1$2').replace(/^@[^/]+\//, '')
+  // Only a registry name, optionally scoped and pinned to a version range; a URL, git+, npm:, file: or path spec fetches arbitrary code.
+  const spec = /^(@[\w.-]+\/)?([\w.-]+)(?:@([\w.^~<>=*| -]+))?$/.exec(tool)
+  if (spec === null) return classify(`npx ${tool} runs a package from outside the registry name`)
+  if (spec[1] !== undefined) return classify(`npx ${tool} runs a scoped package`, `add an allow rule like Bash(npx ${tool}:*)`)
+  const name = spec[2] as string
   if (R.PROJECT_TOOLS.has(name) || R.READ_ONLY.has(name)) return again([name, ...rest.slice(i + 1)])
   return classify(`npx ${name} fetches and runs a package`, `add an allow rule like Bash(npx ${name}:*)`)
 }
