@@ -15,8 +15,10 @@ You are an expert in behavioral code analysis (per Adam Tornhill's "Software Des
 ### 1. Fetch Open PRs
 
 ```bash
-gh pr list --state open --json number,title,author,headRefName,additions,deletions,changedFiles,url
+gh pr list --state open --limit 500 --json number,title,author,headRefName,additions,deletions,changedFiles,url
 ```
+
+`gh pr list` returns 30 PRs unless told otherwise. State the number of open PRs analyzed in the output; if it equals the limit (500), say the list may be truncated.
 
 ### 2. For Each PR, Get Changed Files
 
