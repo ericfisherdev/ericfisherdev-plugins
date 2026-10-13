@@ -21,6 +21,7 @@ export class PlaybackSync {
   private appliedDecision: boolean | null = null
   private lastNotice: string | null = null
   private retryLoadAt = 0
+  private hasEnded = false
   private frame = 0
 
   constructor(
@@ -33,9 +34,11 @@ export class PlaybackSync {
     private readonly notifier: Notifier,
   ) {}
 
-  /** Runs one sync after any already queued; never rejects. */
+  /** Runs one sync after any already queued; never rejects. A no-op once ended. */
   reconcile(): Promise<void> {
-    this.queue = this.queue.then(() => this.syncOnce()).catch(error => this.report(error))
+    this.queue = this.queue
+      .then(() => (this.hasEnded ? undefined : this.syncOnce()))
+      .catch(error => this.report(error))
 
     return this.queue
   }
@@ -54,11 +57,25 @@ export class PlaybackSync {
     return decidePlayback(await this.board.readIntent(), await this.board.readOverride(), await this.board.records(), now)
   }
 
-  /** Marks this session ended; the last live session shuts the player down. */
-  async end(): Promise<void> {
+  /**
+   * Marks this session ended, after any queued sync and before none: later
+   * reconciles do nothing, so no tick can republish this session as live.
+   * The last live session shuts the player down.
+   */
+  end(): Promise<void> {
+    const ending = this.queue.then(() => this.endOnce())
+    this.hasEnded = true
+    this.queue = ending.catch(() => undefined)
+
+    return ending
+  }
+
+  private async endOnce(): Promise<void> {
     const now = await this.clock.now()
     await this.board.publish({ ...this.activity.toRecord(this.identity.sessionId, this.identity.label, now), hasEnded: true })
-    const others = liveRecords(await this.board.records(), now)
+    const others = liveRecords(await this.board.records(), now).filter(
+      record => record.sessionId !== this.identity.sessionId,
+    )
     const intent = await this.board.readIntent()
     if (others.length === 0 && intent?.isEnabled === true) await this.players[intent.player].shutdown()
   }

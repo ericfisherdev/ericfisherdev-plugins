@@ -39,6 +39,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
 
   on('session.id', () => ({ value: sessionId }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))

@@ -1,4 +1,4 @@
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { TunesSnapshot } from '../types'
 import { WORK_THRESHOLD_MS } from './coordination'
@@ -95,6 +95,7 @@ const openPane = ($: EngineInterface) => $.ui.open({ id: PANE, title: 'Coding Tu
 
 export const register: Register = on => {
   let services: TunesServices | undefined
+  let ticker: Timer | undefined
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
@@ -105,7 +106,7 @@ export const register: Register = on => {
       description: 'Play a YouTube Music or Spotify playlist while Claude works',
       argumentHint: '[--player=ytmusic|spotify] [--list=<playlist id>] | --setup | --stop',
     })
-    $.clock.every(TICK_MS, () => void built.sync.reconcile())
+    ticker = $.clock.every(TICK_MS, () => void built.sync.reconcile())
     await built.sync.reconcile()
     const intent = await built.board.readIntent()
     if (e.isInteractive && intent?.isEnabled === true) void openPane($)
@@ -113,8 +114,12 @@ export const register: Register = on => {
     return started
   })
 
+  // A /clear ends the conversation but not the process, and no session.start follows: keep playing.
   on('session.end', async ($, e, next) => {
-    await services?.sync.end().catch(() => undefined)
+    if (e.reason !== 'clear') {
+      ticker?.cancel()
+      await services?.sync.end().catch(() => undefined)
+    }
 
     return next(e)
   })

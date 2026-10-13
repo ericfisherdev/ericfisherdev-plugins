@@ -135,6 +135,39 @@ describe('play and pause overrides', () => {
   })
 })
 
+describe('session end', () => {
+  const endSession = ($: Engine, reason: 'other' | 'clear') =>
+    $.session.end({ reason, sessionId: 'session-mine', resume: { id: 'session-mine' } })
+  const ownRecord = (host: ReturnType<typeof installFakeHost>) =>
+    JSON.parse(host.files.get(`${SHARED_ROOT}/sessions/session-mine.json`) ?? '{}')
+
+  test('the last session quits the player even when a tick lands while it ends', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    await $.turn.start({ text: 'long job', turnId: 'turn-1' })
+    await host.clock.advance(11_000)
+    expect(host.isMpvPlaying()).toBe(true)
+
+    const ending = endSession($, 'other')
+    await host.clock.advance(3_000)
+    await ending
+    await host.clock.advance(6_000)
+
+    expect(host.mpvCommands).toContain('quit')
+    expect(ownRecord(host).hasEnded).toBe(true)
+  })
+
+  test('a /clear keeps the player running for the same process', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    await endSession($, 'clear')
+    await host.clock.advance(3_000)
+
+    expect(host.mpvCommands).not.toContain('quit')
+    expect(ownRecord(host).hasEnded).toBe(false)
+  })
+})
+
 describe('shared player across sessions', () => {
   test("another session's pending question keeps the player paused and refuses play here", async ($, on) => {
     const host = installFakeHost(on, 'session-mine')
