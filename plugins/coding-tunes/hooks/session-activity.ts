@@ -54,6 +54,11 @@ export class SessionActivity {
     this.isHoldWaived = true
   }
 
+  /** Whether a turn of this session is running. */
+  isWorking(): boolean {
+    return this.workingSince !== null
+  }
+
   holdReason(): HoldReason | null {
     if (this.isHoldWaived) return null
     if (this.openQuestions.size > 0) return 'question'

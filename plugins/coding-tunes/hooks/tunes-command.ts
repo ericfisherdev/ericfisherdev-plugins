@@ -1,6 +1,7 @@
 import type { PlayerKind } from '../types'
 import type { YtCookieSource } from './browser-cookies'
 import { extractPlaylistId, parseTunesArgs } from './command-args'
+import type { TransportAction } from './command-args'
 import { PLAYER_KINDS, PLAYER_LABELS, playerKindFromLabel } from './player-kind'
 import type { TunesControls } from './tunes-controls'
 import type { Prompter } from './ports'
@@ -25,6 +26,13 @@ const SAMPLE_PLAYLISTS: Readonly<Record<PlayerKind, readonly string[]>> = {
   ytmusic: ['PLQtABrboQ1MRguCL9d1Z7_v3owvB80vHY'],
   spotify: [],
 }
+const USAGE = 'Usage: /coding-tunes [--player=ytmusic|spotify] [--list=<playlist id>] | --play | --pause | --next | --prev | --setup | --stop'
+const TRANSPORT_DONE: Readonly<Record<TransportAction, string>> = {
+  play: 'Playing until the turn ends.',
+  pause: 'Paused until the next turn starts.',
+  next: 'Next track.',
+  previous: 'Previous track.',
+}
 const PASTE_HINT = 'Paste an id or link under "Other"'
 const KEEP_CLIENT = 'Keep the saved client id'
 const SKIP_LOGIN = 'Skip Spotify login'
@@ -47,7 +55,9 @@ export class TunesCommandFlow {
     try {
       switch (command.kind) {
         case 'invalid':
-          return `${command.reason} Usage: /coding-tunes [--player=ytmusic|spotify] [--list=<playlist id>] | --setup | --stop`
+          return `${command.reason} ${USAGE}`
+        case 'control':
+          return outcomeText(await this.controls[command.action](), TRANSPORT_DONE[command.action])
         case 'setup':
           return await this.setup()
         case 'stop':

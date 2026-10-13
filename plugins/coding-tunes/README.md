@@ -19,7 +19,10 @@ Answer `y` to add the marketplace and pick a scope. Requires Claude Code 2.1.296
 | `/coding-tunes --player=ytmusic --list=<playlist id>` | Loads the playlist (`--player=spotify` for Spotify). An id or a link both work. |
 | `/coding-tunes` | Asks for the player and the playlist. |
 | `/coding-tunes --setup` | Saves the default player and playlist. For YouTube Music it offers a browser login, for Spotify it links your account. |
+| `/coding-tunes --play` / `--pause` / `--next` / `--prev` | The pane's buttons as commands. They run at once, even while Claude is working. |
 | `/coding-tunes --stop` | Stops the shared player and closes the pane. |
+
+While Claude is working, a command that would ask a question (bare `/coding-tunes`, `--setup`, or a start missing its player or playlist) is refused; run it once Claude is idle.
 
 ## When it plays
 
@@ -27,7 +30,7 @@ Answer `y` to add the marketplace and pick a scope. Requires Claude Code 2.1.296
 - It pauses as soon as a **permission dialog** or a **question** (AskUserQuestion) needs you, and resumes once it is answered.
 - **Shared across sessions.** Every Claude session on the machine drives one player. While any session waits on your input, the player stays paused and no other session can resume it, not even with its play button. The waiting session may press play itself.
 - **Your buttons.** Pause lasts until the next turn starts; play lasts until the next turn ends. Previous and next skip at any time.
-- Pane hotkeys, while the pane has focus: `z` previous, `x` play, `c` pause, `b` next.
+- Pane hotkeys, while the pane has focus (ctrl+x tab): `z` previous, `x` play, `c` pause, `b` next. Clicks on the buttons reach the pane only in the fullscreen layout; on the main screen use the hotkeys or the `--play`, `--pause`, `--next` and `--prev` commands.
 
 ## Players
 

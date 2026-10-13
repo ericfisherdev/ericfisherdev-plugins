@@ -1,9 +1,13 @@
 import type { PlayerKind } from '../types'
 import { PLAYER_KINDS, isPlayerKind } from './player-kind'
 
+/** The pane's transport buttons, pressed by command. */
+export type TransportAction = 'play' | 'pause' | 'next' | 'previous'
+
 /** What `/coding-tunes <args>` asks for, before defaults are applied. */
 export type TunesCommand =
   | { kind: 'start'; player?: PlayerKind; playlistId?: string }
+  | { kind: 'control'; action: TransportAction }
   | { kind: 'pick' }
   | { kind: 'setup' }
   | { kind: 'stop' }
@@ -11,7 +15,14 @@ export type TunesCommand =
 
 type Flags = Map<string, string | true>
 
-const KNOWN_FLAGS = new Set(['player', 'list', 'playlist', 'setup', 'stop'])
+const TRANSPORT_FLAGS: Readonly<Record<string, TransportAction>> = {
+  play: 'play',
+  pause: 'pause',
+  next: 'next',
+  prev: 'previous',
+  previous: 'previous',
+}
+const KNOWN_FLAGS = new Set(['player', 'list', 'playlist', 'setup', 'stop', ...Object.keys(TRANSPORT_FLAGS)])
 const PLAYLIST_ID = /^[A-Za-z0-9_-]{2,128}$/
 
 /**
@@ -24,8 +35,20 @@ export const parseTunesArgs = (args: string): TunesCommand => {
   if (flags.size === 0) return { kind: 'pick' }
   if (flags.has('setup')) return { kind: 'setup' }
   if (flags.has('stop')) return { kind: 'stop' }
+  const transport = [...flags.keys()].filter(flag => flag in TRANSPORT_FLAGS)
+  if (transport.length > 0) return readTransport(flags, transport)
 
   return readStart(flags)
+}
+
+const readTransport = (flags: Flags, transport: readonly string[]): TunesCommand => {
+  const [flag] = transport
+  if (transport.length > 1 || flags.size > 1 || flag === undefined) {
+    return { kind: 'invalid', reason: 'Use one of --play, --pause, --next or --prev, on its own.' }
+  }
+  if (flags.get(flag) !== true) return { kind: 'invalid', reason: `--${flag} takes no value.` }
+
+  return { kind: 'control', action: TRANSPORT_FLAGS[flag] as TransportAction }
 }
 
 /**

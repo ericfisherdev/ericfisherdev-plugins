@@ -104,7 +104,8 @@ export const register: Register = on => {
     await $.command.register({
       name: COMMAND,
       description: 'Play a YouTube Music or Spotify playlist while Claude works',
-      argumentHint: '[--player=ytmusic|spotify] [--list=<playlist id>] | --setup | --stop',
+      argumentHint: '[--player=ytmusic|spotify] [--list=<id>] | --play | --pause | --next | --prev | --setup | --stop',
+      immediate: true,
     })
     ticker = $.clock.every(TICK_MS, () => void built.sync.reconcile())
     await built.sync.reconcile()
