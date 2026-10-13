@@ -16,6 +16,29 @@ const REMOTE = set('ssh scp rsync sftp')
 
 const nonFlags = (args: readonly string[]): string[] => args.filter(a => !a.startsWith('-') || a === '-')
 
+/**
+ * Variables that only tune output, locale or logging. Any other assignment
+ * (PAGER, GIT_*, LD_PRELOAD, BASH_ENV, NODE_OPTIONS, PATH, ...) can change
+ * which program a command runs, so it goes to the classifier.
+ */
+const INERT_ENV = /^(NODE_ENV|CI|DEBUG|RUST_LOG|RUST_BACKTRACE|LANG|LANGUAGE|LC_[A-Z_]+|TZ|NO_COLOR|FORCE_COLOR|CLICOLOR(_FORCE)?|TERM|COLUMNS|LINES)$/
+const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)\+?=/
+const DECLARERS = set('export declare typeset readonly local')
+
+function judgeAssignments(assignments: readonly string[]): Decision {
+  for (const a of assignments) {
+    const name = ASSIGNMENT.exec(a)?.[1]
+    if (name !== undefined && !INERT_ENV.test(name)) return classify(`sets ${name}, which can change what a command runs`)
+  }
+  return allow('sets only output, locale or logging variables')
+}
+
+/** PowerShell's `$env:NAME = ...`, as a `NAME=` assignment. */
+function powershellEnvAssignments(seg: Segment, flavor: Flavor): string[] {
+  const name = flavor === 'powershell' ? /^\$env:(\w+)/i.exec(seg.argv[0] ?? '')?.[1] : undefined
+  return name === undefined ? [] : [`${name}=`]
+}
+
 /** Judges one shell command line. */
 export function judgeShell(command: string, flavor: Flavor, ctx: Context): Decision {
   const text = command.trim()
@@ -57,6 +80,11 @@ function nextCwd(seg: Segment, here: string | undefined): string | undefined {
 }
 
 function judgeSegment(seg: Segment, flavor: Flavor, ctx: Context): Decision {
+  const assigned = judgeAssignments([...seg.env, ...powershellEnvAssignments(seg, flavor)])
+  return worse(assigned, judgeSegmentCommand(seg, flavor, ctx))
+}
+
+function judgeSegmentCommand(seg: Segment, flavor: Flavor, ctx: Context): Decision {
   let argv = seg.argv
   if (flavor === 'powershell' && argv[0] !== undefined && argv[0].startsWith('$')) {
     const head = argv[0]
@@ -83,6 +111,7 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return judgeArgv(baseName(h), next.slice(1), seg, flavor, ctx)
   }
   if (R.WRAPPERS.has(cmd)) return judgeWrapped(cmd, rest, again)
+  if (DECLARERS.has(cmd)) return worse(allow(`the shell builtin ${cmd}`), judgeAssignments(rest))
   if (R.BUILTINS.has(cmd)) return allow(`the shell builtin ${cmd}`)
   if (cmd === 'source' || cmd === '.') return classify('sources a script into the shell')
   if (cmd === 'eval' || cmd === 'invoke-expression' || cmd === 'iex') {
@@ -157,9 +186,12 @@ function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => De
               : cmd === 'stdbuf' ? ['-i', '-o', '-e']
                 : [],
   )
+  const assignments: string[] = []
   while (i < rest.length) {
     const a = rest[i] as string
-    if (cmd === 'env' && /^[A-Za-z_][A-Za-z0-9_]*=/.test(a)) {
+    if (cmd === 'env' && /^(-S|--split-string)(=.*)?$/.test(a)) return classify('env -S splits a string into a command')
+    if (cmd === 'env' && ASSIGNMENT.test(a)) {
+      assignments.push(a)
       i++
       continue
     }
@@ -176,7 +208,7 @@ function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => De
     if (cmd === 'xargs') return allow('xargs echoes')
     return allow(`${cmd} with nothing to run`)
   }
-  return again(inner)
+  return worse(judgeAssignments(assignments), again(inner))
 }
 
 function judgeSubshell(cmd: string, rest: string[], ctx: Context): Decision {
