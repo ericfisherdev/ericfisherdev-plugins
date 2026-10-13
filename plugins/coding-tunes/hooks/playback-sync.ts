@@ -51,7 +51,7 @@ export class PlaybackSync {
   async currentDecision(): Promise<PlaybackDecision> {
     const now = await this.clock.now()
 
-    return decidePlayback(await this.board.readIntent(), await this.board.records(), now)
+    return decidePlayback(await this.board.readIntent(), await this.board.readOverride(), await this.board.records(), now)
   }
 
   /** Marks this session ended; the last live session shuts the player down. */
@@ -68,7 +68,7 @@ export class PlaybackSync {
     await this.board.publish(this.activity.toRecord(this.identity.sessionId, this.identity.label, now))
     const records = await this.board.records()
     const intent = await this.board.readIntent()
-    const decision = decidePlayback(intent, records, now)
+    const decision = decidePlayback(intent, await this.board.readOverride(), records, now)
     const isWaitingToRetry = this.loadedKey === null && now < this.retryLoadAt
     const playing = intent?.isEnabled === true && !isWaitingToRetry ? await this.drive(intent, decision) : null
     await this.board.prune(records, now)

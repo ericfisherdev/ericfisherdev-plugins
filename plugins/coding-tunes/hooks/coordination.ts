@@ -18,12 +18,11 @@ export type SessionRecord = {
 /** User override on top of the automatic play/pause rule. */
 export type PlaybackOverride = 'none' | 'paused' | 'playing'
 
-/** The one player every session shares: what to play and the person's override. */
+/** The one player every session shares: what to play. Only start and stop write it. */
 export type PlayerIntent = {
   isEnabled: boolean
   player: PlayerKind
   playlistId: string
-  override: PlaybackOverride
 }
 
 export type PlaybackDecision = {
@@ -47,13 +46,14 @@ export const liveRecords = (records: readonly SessionRecord[], now: number): Ses
  */
 export const decidePlayback = (
   intent: PlayerIntent | undefined,
+  override: PlaybackOverride,
   records: readonly SessionRecord[],
   now: number,
 ): PlaybackDecision => {
   const live = liveRecords(records, now)
   const holder = live.find(record => record.holdReason !== null) ?? null
   if (intent === undefined || !intent.isEnabled || holder !== null) return { shouldPlay: false, holder }
-  if (intent.override !== 'none') return { shouldPlay: intent.override === 'playing', holder }
+  if (override !== 'none') return { shouldPlay: override === 'playing', holder }
   const isAnyoneWorking = live.some(
     record => record.workingSince !== null && now - record.workingSince >= WORK_THRESHOLD_MS,
   )
@@ -63,7 +63,9 @@ export const decidePlayback = (
 
 /**
  * Per-session files under one runtime folder. Each session writes only its own
- * record, so no lock is needed; the intent file is last-writer-wins.
+ * record, so no lock is needed. The intent is written whole only by start and
+ * stop, and the override sits in a file of its own, so the turn hooks that
+ * clear an override can never put back an intent another session replaced.
  */
 export class SharedBoard {
   constructor(
@@ -94,6 +96,15 @@ export class SharedBoard {
     await this.files.write(this.intentPath(), JSON.stringify(intent))
   }
 
+  /** The person's play/pause override; a file of its own so writing it never rewrites the intent. */
+  async readOverride(): Promise<PlaybackOverride> {
+    return parseJson<PlaybackOverride>(await this.files.read(this.overridePath())) ?? 'none'
+  }
+
+  async writeOverride(override: PlaybackOverride): Promise<void> {
+    await this.files.write(this.overridePath(), JSON.stringify(override))
+  }
+
   /** Removes records of sessions dead for an hour, so the folder stays small. */
   async prune(records: readonly SessionRecord[], now: number): Promise<void> {
     const dead = records.filter(record => record.hasEnded || now - record.heartbeatAt > PRUNE_AFTER_MS)
@@ -110,6 +121,10 @@ export class SharedBoard {
 
   private intentPath(): string {
     return `${this.root}/intent.json`
+  }
+
+  private overridePath(): string {
+    return `${this.root}/override.json`
   }
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { installFakeHost, writeForeignSession } from './fake-host'
+import { SHARED_ROOT, installFakeHost, writeForeignSession } from './fake-host'
 
 const PLAYLIST = 'PLQtABrboQ1MRguCL9d1Z7_v3owvB80vHY'
 const PANE_PROPS = {
@@ -103,6 +103,35 @@ describe('playlist errors', () => {
     await host.clock.advance(18_000)
     expect(host.ensureArgs.length).toBeGreaterThan(ensuresAtFailure)
     expect(host.isMpvPlaying()).toBe(true)
+  })
+})
+
+describe('play and pause overrides', () => {
+  test('clearing a pause when a turn starts never rewrites the intent a --stop wrote', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    const pane = await $.ui.mount({
+      plugin: 'coding-tunes',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'coding-tunes',
+      props: PANE_PROPS,
+    })
+    await pane.press({ key: 'pause' })
+    await host.clock.advance(0)
+    expect(JSON.parse(host.files.get(`${SHARED_ROOT}/override.json`) ?? '""')).toBe('paused')
+    await $.command.run({ command: 'coding-tunes', args: '--stop', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+    const intentWrites = () => host.writtenPaths.filter(path => path.endsWith('/intent.json')).length
+    const writesAfterStop = intentWrites()
+
+    await $.turn.start({ text: 'next job', turnId: 'turn-2' })
+    await host.clock.advance(12_000)
+
+    expect(intentWrites()).toBe(writesAfterStop)
+    expect(JSON.parse(host.files.get(`${SHARED_ROOT}/intent.json`) ?? '{}').isEnabled).toBe(false)
+    expect(JSON.parse(host.files.get(`${SHARED_ROOT}/override.json`) ?? '""')).toBe('none')
+    expect(host.isMpvPlaying()).toBe(false)
+    await pane.unmount()
   })
 })
 
