@@ -45,3 +45,31 @@ test('inert assignments stay allowed and never soften a block', () => {
   expect(sh('env RUST_LOG=debug cargo test')).toBe('allow')
   expect(sh('PAGER=less rm -rf /')).toBe('ask')
 })
+
+test('stacked -C resolves each path against the one before it', () => {
+  expect(sh('git -C sub -C ../.. status')).toBe('classify')
+  expect(sh('git -C sub -C deeper status')).toBe('allow')
+  expect(sh('git -C sub --git-dir=../../elsewhere/.git log')).toBe('classify')
+})
+
+test('git subcommand options that run programs or install hooks go to the classifier', () => {
+  expect(sh('git grep -O"touch /tmp/pwn" TODO')).toBe('classify')
+  expect(sh('git grep --open-files-in-pager=vim TODO')).toBe('classify')
+  expect(sh(`git ls-remote --upload-pack='touch /tmp/pwn' origin`)).toBe('classify')
+  expect(sh(`git fetch --upload-pack='touch /tmp/pwn' origin`)).toBe('classify')
+  expect(sh(`git clone -u 'touch /tmp/pwn' /tmp/repo`)).toBe('classify')
+  expect(sh('git clone -c core.fsmonitor=evil https://example.com/r.git')).toBe('classify')
+  expect(sh('git clone --template=/tmp/hooks https://example.com/r.git')).toBe('classify')
+  expect(sh('git init --template=/tmp/hooks')).toBe('classify')
+  expect(sh(`git submodule foreach 'rm -rf build'`)).toBe('classify')
+  expect(sh('git log --output=/tmp/out.txt')).toBe('classify')
+})
+
+test('ordinary git subcommand options stay allowed', () => {
+  expect(sh('git grep -n TODO')).toBe('allow')
+  expect(sh('git fetch origin')).toBe('allow')
+  expect(sh('git clone https://example.com/r.git')).toBe('allow')
+  expect(sh('git submodule update --init')).toBe('allow')
+  expect(sh('git log --output=notes/log.txt')).toBe('allow')
+  expect(sh('git commit -c HEAD')).toBe('allow')
+})
