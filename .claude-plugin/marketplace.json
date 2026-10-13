@@ -46,6 +46,13 @@
       "description": "Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you",
       "version": "1.0.0",
       "keywords": ["permissions", "auto-mode", "auto-approve", "classifier", "prompts", "hooks", "mod", "workflow", "quality-of-life"]
+    },
+    {
+      "name": "coding-tunes",
+      "source": "./plugins/coding-tunes",
+      "description": "Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane",
+      "version": "1.0.0",
+      "keywords": ["music", "youtube-music", "spotify", "winamp", "mpv", "pane", "hooks", "mod", "quality-of-life"]
     }
   ]
 }

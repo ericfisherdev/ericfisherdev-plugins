@@ -26,6 +26,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.0 |
+| [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.0.0 |
 
 ---
 
@@ -285,6 +286,38 @@ A mod (function-hooks plugin) for accounts that cannot use auto mode. It hooks t
 **Requirements:**
 - Claude Code 2.1.296 or later (function hooks)
 - Not for sessions that already run auto mode: the mod approves before the auto-mode classifier runs
+
+---
+
+### coding-tunes
+
+A mod (function-hooks plugin) that plays a YouTube Music or Spotify playlist once Claude has been working for 10 seconds, and pauses the moment a permission prompt or a question needs you. Every Claude session on the machine shares one player: while any session waits on your input, no other session can resume it. A Winamp-style pane shows the player, track, playlist, elapsed time and spectrum, with previous, play, pause and next controls.
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/coding-tunes --player=ytmusic --list=<playlist id>` | Load a playlist (ids or links); it plays once Claude works 10 seconds |
+| `/coding-tunes` | Ask for the player and the playlist |
+| `/coding-tunes --setup` | Save the default player and playlist; link Spotify or pick a browser login for private YouTube playlists |
+| `/coding-tunes --stop` | Stop the shared player and close the pane |
+
+**Features:**
+- Pauses on permission dialogs and AskUserQuestion; resumes when they are answered
+- One shared player across sessions; a session awaiting input holds it paused for all
+- Private YouTube Music playlists through a browser's signed-in cookies (Zen, Firefox, Chrome, Brave, ...)
+- Pane hotkeys `z` `x` `c` `b` (previous, play, pause, next), as in Winamp
+
+**Install:**
+
+```bash
+/plugin install coding-tunes --marketplace ericfisherdev/ericfisherdev-plugins
+```
+
+**Requirements:**
+- Claude Code 2.1.296 or later (function hooks), Linux, Python 3
+- YouTube Music: `mpv` and `yt-dlp`
+- Spotify: Premium, a Spotify developer app's client id, and an open Spotify client
 
 ---
 
