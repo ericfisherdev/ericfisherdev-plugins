@@ -36,6 +36,9 @@ test('environment assignments that can change what runs go to the classifier', (
   expect(sh(`env -S 'sh -c id' x`)).toBe('classify')
   expect(sh(`env --split-string='sh -c id'`)).toBe('classify')
   expect(sh('FOO=$(git rev-parse HEAD) echo $FOO')).toBe('classify')
+  expect(sh(`set -a; : \${GIT_EXTERNAL_DIFF:='sh -c id'}; git diff`)).toBe('classify')
+  expect(sh(`set -a; : \${GIT_SSH_COMMAND='sh -c id'}; git fetch`)).toBe('classify')
+  expect(sh('echo "\${PAGER:=x}"')).toBe('classify')
   expect(judgeShell(`$env:GIT_PAGER = 'calc'; git log`, 'powershell', ctx).kind).toBe('classify')
 })
 
@@ -44,6 +47,8 @@ test('inert assignments stay allowed and never soften a block', () => {
   expect(sh('CI=1 LANG=C git log')).toBe('allow')
   expect(sh('export NODE_ENV=test')).toBe('allow')
   expect(sh('env RUST_LOG=debug cargo test')).toBe('allow')
+  expect(sh(': ${NODE_ENV:=test}')).toBe('allow')
+  expect(sh('echo ${HOME:-/tmp}')).toBe('allow')
   expect(sh('PAGER=less rm -rf /')).toBe('ask')
 })
 
