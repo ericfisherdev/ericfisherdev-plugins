@@ -67,6 +67,16 @@ function powershellEnvAssignments(seg: Segment, flavor: Flavor): string[] {
   return name === undefined ? [] : [`${name}=`]
 }
 
+/**
+ * `${NAME:=value}` and `${NAME=value}` anywhere in the segment, as `NAME=`
+ * assignments: the expansion sets NAME, and under `set -a` exports it to the
+ * next command.
+ */
+function expansionAssignments(seg: Segment, flavor: Flavor): string[] {
+  if (flavor !== 'sh') return []
+  return [...seg.env, ...seg.argv].flatMap(a => [...a.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*):?=/g)].map(m => `${m[1] as string}=`))
+}
+
 /** Judges one shell command line. */
 export function judgeShell(command: string, flavor: Flavor, ctx: Context): Decision {
   const text = command.trim()
@@ -108,7 +118,7 @@ function nextCwd(seg: Segment, here: string | undefined): string | undefined {
 }
 
 function judgeSegment(seg: Segment, flavor: Flavor, ctx: Context): Decision {
-  const assigned = judgeAssignments([...seg.env, ...powershellEnvAssignments(seg, flavor)])
+  const assigned = judgeAssignments([...seg.env, ...powershellEnvAssignments(seg, flavor), ...expansionAssignments(seg, flavor)])
   return worse(assigned, judgeSegmentCommand(seg, flavor, ctx))
 }
 
