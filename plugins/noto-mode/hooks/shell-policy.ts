@@ -174,9 +174,9 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return awkRunsOrWrites(rest) ? classify('an awk program that runs commands, reads their output or writes files') : allow('awk prints')
   }
   if (cmd === 'sort') {
-    if (rest.some(a => /^--compress-program/.test(a))) return classify('sort runs a compression program')
-    const o = rest.findIndex(a => a === '-o' || a === '--output')
-    if (o !== -1) return judgeWritePath(rest[o + 1] ?? '', ctx, 'sort -o')
+    if (rest.some(a => longOpt(a, '--compress-program'))) return classify('sort runs a compression program')
+    const target = outputTarget(rest, true)
+    if (target !== undefined) return judgeWritePath(target, ctx, 'sort -o')
     return allow('sort prints')
   }
   if (cmd === 'tee-object' || cmd === 'tee') return judgePaths(nonFlags(rest), ctx, cmd)
@@ -209,6 +209,21 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return rest.some(a => a.startsWith('--')) ? classify(`${cmd} with options`) : allow(`opens the editor`)
   }
   return classify(`${cmd} is not in the read-only or project command set`)
+}
+
+/**
+ * The file named by `--output` (in full or by prefix, `=`-joined or separate)
+ * or, where the tool has it, by `-o` (attached or separate); undefined when
+ * neither is given.
+ */
+function outputTarget(rest: readonly string[], shortO: boolean): string | undefined {
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if ((shortO && a === '-o') || (longOpt(a, '--output') && !a.includes('='))) return rest[i + 1] ?? ''
+    if (longOpt(a, '--output')) return a.slice(a.indexOf('=') + 1)
+    if (shortO && /^-o./.test(a)) return a.slice(2)
+  }
+  return undefined
 }
 
 /** The scripts sed will run: each -e value, else the first operand. */
@@ -392,23 +407,12 @@ const GIT_PROGRAM_OPTIONS: Readonly<Record<string, ProgramOptions>> = {
 const runsProgram = (options: ProgramOptions, a: string): boolean =>
   options.short?.test(a) === true || options.long.some(name => longOpt(a, name))
 
-/** The file a subcommand writes: `--output[=]<file>`, or archive's `-o[<file>]`. */
-function gitOutputTarget(sub: string, rest: readonly string[]): string | undefined {
-  for (let i = 0; i < rest.length; i++) {
-    const a = rest[i] as string
-    if (a === '--output' || (sub === 'archive' && a === '-o')) return rest[i + 1] ?? ''
-    if (a.startsWith('--output=')) return a.slice('--output='.length)
-    if (sub === 'archive' && /^-o./.test(a)) return a.slice(2)
-  }
-  return undefined
-}
-
 /** What a subcommand's options add on top of the subcommand itself, if anything. */
 function judgeGitOptions(sub: string, rest: string[], ctx: Context): Decision | undefined {
   const runs = GIT_PROGRAM_OPTIONS[sub]
   if (runs !== undefined && rest.some(a => runsProgram(runs, a))) return classify(`git ${sub} with an option that runs a program or installs hooks`)
   if (sub === 'submodule' && nonFlags(rest)[0] === 'foreach') return classify('git submodule foreach runs a command in every submodule')
-  const target = gitOutputTarget(sub, rest)
+  const target = outputTarget(rest, sub === 'archive')
   if (target === undefined) return undefined
   const written = judgeWritePath(target, ctx, `git ${sub} --output`)
   return written.kind === 'allow' ? undefined : written
