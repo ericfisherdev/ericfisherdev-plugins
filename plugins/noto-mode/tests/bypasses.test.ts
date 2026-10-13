@@ -24,3 +24,24 @@ test('git inside the working directories stays allowed', () => {
   expect(sh('git --no-pager diff')).toBe('allow')
   expect(sh('git --exec-path')).toBe('allow')
 })
+
+test('environment assignments that can change what runs go to the classifier', () => {
+  expect(sh('env LD_PRELOAD=/tmp/evil.so cat README.md')).toBe('classify')
+  expect(sh(`env PAGER='touch /tmp/pwn' git log`)).toBe('classify')
+  expect(sh(`PAGER='touch /tmp/pwn' git log`)).toBe('classify')
+  expect(sh(`GIT_PAGER='touch /tmp/pwn' git log`)).toBe('classify')
+  expect(sh(`export PAGER='touch /tmp/pwn'; git log`)).toBe('classify')
+  expect(sh('declare -x BASH_ENV=/tmp/evil.sh')).toBe('classify')
+  expect(sh(`env -S 'sh -c id' x`)).toBe('classify')
+  expect(sh(`env --split-string='sh -c id'`)).toBe('classify')
+  expect(sh('FOO=$(git rev-parse HEAD) echo $FOO')).toBe('classify')
+  expect(judgeShell(`$env:GIT_PAGER = 'calc'; git log`, 'powershell', ctx).kind).toBe('classify')
+})
+
+test('inert assignments stay allowed and never soften a block', () => {
+  expect(sh('NODE_ENV=test npm test')).toBe('allow')
+  expect(sh('CI=1 LANG=C git log')).toBe('allow')
+  expect(sh('export NODE_ENV=test')).toBe('allow')
+  expect(sh('env RUST_LOG=debug cargo test')).toBe('allow')
+  expect(sh('PAGER=less rm -rf /')).toBe('ask')
+})

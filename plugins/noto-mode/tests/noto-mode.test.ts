@@ -73,8 +73,8 @@ test('read-only and project shell commands are allowed', () => {
     'npm test', 'npm run build', 'npm ci', 'pnpm install', 'npx tsc --noEmit', 'npx prettier --check .',
     'pip install -r requirements.txt', 'python -m pytest -q', 'cargo test', 'go vet ./...', 'dotnet build',
     'mkdir -p out && cp a.txt out/', 'echo hi > notes.txt', 'curl -s https://example.com/api', 'node --version',
-    'cd src && ls', 'git add -A && git commit -m "x"', 'docker ps', 'gh pr view 12', 'FOO=$(git rev-parse HEAD) echo $FOO',
-    'make test', 'git checkout -b feature/x', 'git switch main', 'timeout 30 npm test', 'env FOO=1 npm test',
+    'cd src && ls', 'git add -A && git commit -m "x"', 'docker ps', 'gh pr view 12', 'NODE_ENV=$(git rev-parse HEAD) echo $NODE_ENV',
+    'make test', 'git checkout -b feature/x', 'git switch main', 'timeout 30 npm test', 'env NODE_ENV=test npm test',
   ]) expect([c, sh(c)]).toEqual([c, 'allow'])
 })
 
