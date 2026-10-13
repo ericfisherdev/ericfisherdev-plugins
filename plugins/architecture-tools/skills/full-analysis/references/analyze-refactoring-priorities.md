@@ -26,7 +26,7 @@ For top 50 files, measure complexity (LOC + average indentation depth).
 
 #### b. Churn data
 ```bash
-git log --since="{since}" --numstat --format="" | awk '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f], deleted[f], f }' | sort -rn
+git log --since="{since}" --numstat --no-renames --format="" | awk -F'\t' '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f], deleted[f], f }' | sort -rn
 ```
 Compute churn rate and rewrite ratio for top files.
 

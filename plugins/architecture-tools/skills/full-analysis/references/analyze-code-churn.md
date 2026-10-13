@@ -24,10 +24,12 @@ You are an expert in behavioral code analysis (per Adam Tornhill's "Software Des
 For each file, sum lines added and deleted over the analysis period:
 
 ```bash
-git log --since="6 months ago" --numstat --format="COMMIT:%H" | \
-  awk '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f], deleted[f], f }' | \
+git log --since="6 months ago" --numstat --no-renames --format="COMMIT:%H" | \
+  awk -F'\t' '/^[0-9]/ { added[$3]+=$1; deleted[$3]+=$2 } END { for(f in added) print added[f], deleted[f], f }' | \
   sort -rn -k1,1
 ```
+
+`--no-renames` reports a rename as a deletion and an addition, so a moved file's churn is keyed on real paths instead of `src/{old.go => new.go}`; `-F'\t'` keeps paths with spaces whole.
 
 ### 2. Calculate Churn Metrics
 
