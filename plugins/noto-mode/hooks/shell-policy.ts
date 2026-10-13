@@ -417,11 +417,34 @@ const GIT_PROGRAM_OPTIONS: Readonly<Record<string, ProgramOptions>> = {
 const runsProgram = (options: ProgramOptions, a: string): boolean =>
   options.short?.test(a) === true || options.long.some(name => longOpt(a, name))
 
-const GIT_NETWORK = set('ls-remote fetch pull clone')
 /** A repository named by `scheme://` URL or scp-style `user@host:path`. */
 const GIT_URL = /^[a-z][\w+.-]*:\/\/|^[^\s/:@]+@[^\s/:{]+:/i
-/** A scp-style `host:path` with no user; a one-letter host is a Windows drive. Only the repository operand is read this way, since a refspec looks the same. */
+/** A scp-style `host:path` with no user; a one-letter host is a Windows drive. */
 const GIT_HOST_PATH = /^[^\s/:]{2,}:/
+const isGitRemote = (spec: string): boolean => GIT_URL.test(spec) || GIT_HOST_PATH.test(spec)
+
+/** fetch/pull options whose value is the next word, so that word is not the repository. */
+const GIT_FETCH_VALUE_OPTIONS = ['--depth', '--deepen', '--shallow-since', '--shallow-exclude', '--negotiation-tip', '--refmap', '--jobs', '--server-option', '--upload-pack', '--strategy', '--strategy-option']
+const GIT_FETCH_VALUE_SHORT = /^-[a-zA-Z0-9]*[josX]$/
+
+/**
+ * The words fetch or pull reads as repositories: the first operand once
+ * option values are skipped, or every operand under --multiple. Later
+ * operands are refspecs, and `main:main` looks like `host:path`.
+ */
+function fetchRepositories(rest: readonly string[]): readonly string[] {
+  const operands: string[] = []
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a === '--') {
+      operands.push(...rest.slice(i + 1))
+      break
+    }
+    if (GIT_FETCH_VALUE_SHORT.test(a) || (GIT_FETCH_VALUE_OPTIONS.some(name => longOpt(a, name)) && !a.includes('='))) i++
+    else if (!a.startsWith('-') || a === '-') operands.push(a)
+  }
+  return rest.some(a => longOpt(a, '--multiple')) ? operands : operands.slice(0, 1)
+}
 
 /**
  * The URL or host:path a network subcommand (or `submodule add`, or
@@ -429,16 +452,24 @@ const GIT_HOST_PATH = /^[^\s/:]{2,}:/
  * local path; undefined when there is none.
  */
 function gitRemoteSpec(sub: string, rest: readonly string[]): string | undefined {
-  const isRemote = (spec: string): boolean => GIT_URL.test(spec) || GIT_HOST_PATH.test(spec)
-  if (sub === 'archive') {
-    const r = rest.findIndex(a => a === '--remote' || a.startsWith('--remote='))
-    const spec = r === -1 ? undefined : rest[r]?.startsWith('--remote=') === true ? rest[r]?.slice('--remote='.length) : rest[r + 1]
-    return spec !== undefined && isRemote(spec) ? spec : undefined
-  }
   const positional = nonFlags(rest)
-  const operands = GIT_NETWORK.has(sub) ? positional : sub === 'submodule' && positional[0] === 'add' ? positional.slice(1) : []
-  const repository = operands[0]
-  return operands.find(a => GIT_URL.test(a)) ?? (repository !== undefined && isRemote(repository) ? repository : undefined)
+  switch (sub) {
+    case 'fetch':
+    case 'pull':
+      return positional.find(a => GIT_URL.test(a)) ?? fetchRepositories(rest).find(isGitRemote)
+    case 'clone':
+    case 'ls-remote':
+      return positional.find(isGitRemote)
+    case 'submodule':
+      return positional[0] === 'add' ? positional.slice(1).find(isGitRemote) : undefined
+    case 'archive': {
+      const r = rest.findIndex(a => a === '--remote' || a.startsWith('--remote='))
+      const spec = r === -1 ? undefined : rest[r]?.startsWith('--remote=') === true ? rest[r]?.slice('--remote='.length) : rest[r + 1]
+      return spec !== undefined && isGitRemote(spec) ? spec : undefined
+    }
+    default:
+      return undefined
+  }
 }
 
 /** What a subcommand's options add on top of the subcommand itself, if anything. */
