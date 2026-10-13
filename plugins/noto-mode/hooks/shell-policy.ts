@@ -253,16 +253,45 @@ const GIT_READ = set('status log diff show blame shortlog ls-files ls-tree ls-re
 const GIT_SAFE = set('add commit fetch pull merge cherry-pick revert init clone submodule am apply format-patch archive mv switch restore reset')
 const GIT_BRANCH_FLAGS = /^(-a|-r|-v|-vv|--list|--show-current|--contains|--no-contains|--merged|--no-merged|--format(=.*)?|--sort(=.*)?|-l|--all|--remotes|--verbose|--points-at|--color|--no-color|--column|--no-column)$/
 
-/** A repository outside the working directories brings its own config, whose hooks and helpers run commands. */
-function judgeGitRepoPath(spelling: string | undefined, ctx: Context): Decision | undefined {
+/**
+ * Where a -C, --git-dir or --work-tree lands, resolved against `base` (each -C
+ * is relative to the one before it), or the classify decision when it leaves
+ * the working directories: another repository brings its own config, whose
+ * hooks and helpers run commands.
+ */
+function resolveGitRepoPath(spelling: string | undefined, base: string, ctx: Context): string | Decision {
   if (spelling === undefined || spelling.includes(SUB) || /\$|%[^%]+%/.test(spelling)) return classify('git on a repository the shell names at run time')
-  const p = normalizePath(spelling, ctx.cwd)
+  const p = normalizePath(spelling, base)
   if (p === undefined || !isInsideAny(p, ctx.workingDirs)) return classify(`git on a repository outside the working directories (${spelling}), whose config can run commands`, ADD_DIR_FIX)
-  return undefined
+  return p
+}
+
+/** Subcommand options that run a program of the caller's choosing or install hooks. */
+const GIT_PROGRAM_OPTIONS: Readonly<Record<string, RegExp>> = {
+  grep: /^(-[a-zA-Z]*O|--open-files-in-pager)/,
+  'ls-remote': /^--upload-pack/,
+  fetch: /^--upload-pack/,
+  pull: /^--upload-pack/,
+  clone: /^(-[a-zA-Z]*[uc]|--upload-pack|--config|--template)/,
+  init: /^--template/,
+  archive: /^--exec/,
+}
+
+/** What a subcommand's options add on top of the subcommand itself, if anything. */
+function judgeGitOptions(sub: string, rest: string[], ctx: Context): Decision | undefined {
+  const runs = GIT_PROGRAM_OPTIONS[sub]
+  if (runs !== undefined && rest.some(a => runs.test(a))) return classify(`git ${sub} with an option that runs a program or installs hooks`)
+  if (sub === 'submodule' && nonFlags(rest)[0] === 'foreach') return classify('git submodule foreach runs a command in every submodule')
+  const o = rest.findIndex(a => a === '--output' || a.startsWith('--output='))
+  if (o === -1) return undefined
+  const target = rest[o]?.startsWith('--output=') === true ? rest[o]?.slice('--output='.length) : rest[o + 1]
+  const written = judgeWritePath(target ?? '', ctx, `git ${sub} --output`)
+  return written.kind === 'allow' ? undefined : written
 }
 
 function judgeGit(args: string[], ctx: Context): Decision {
   let i = 0
+  let base = ctx.cwd
   while (i < args.length) {
     const a = args[i] as string
     // -c and --config-env set any key, including the ones that run programs (core.pager, core.fsmonitor, alias.*, *.sshCommand).
@@ -270,8 +299,9 @@ function judgeGit(args: string[], ctx: Context): Decision {
     if (/^--exec-path=/.test(a)) return classify('git with its helper programs taken from another directory')
     if (a === '-C' || /^(--git-dir|--work-tree)(=.*)?$/.test(a)) {
       const value = a.includes('=') ? a.slice(a.indexOf('=') + 1) : args[i + 1]
-      const outside = judgeGitRepoPath(value, ctx)
-      if (outside !== undefined) return outside
+      const landed = resolveGitRepoPath(value, base, ctx)
+      if (typeof landed !== 'string') return landed
+      if (a === '-C') base = landed
       i += a.includes('=') ? 1 : 2
     } else if (/^--namespace(=.*)?$/.test(a)) i += a.includes('=') ? 1 : 2
     else if (/^(--no-pager|-P|-p|--paginate|--no-optional-locks|--literal-pathspecs|--no-replace-objects|--bare|--exec-path)$/.test(a)) i++
@@ -281,6 +311,8 @@ function judgeGit(args: string[], ctx: Context): Decision {
   const rest = args.slice(i + 1)
   const positional = nonFlags(rest)
   if (sub === undefined) return allow('git prints its help')
+  const options = judgeGitOptions(sub, rest, { ...ctx, cwd: base })
+  if (options !== undefined) return options
   if (GIT_READ.has(sub)) return allow(`git ${sub} is read-only`)
   switch (sub) {
     case 'branch':
