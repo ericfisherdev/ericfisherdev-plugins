@@ -3,6 +3,7 @@ import { describe, expect, test } from 'claude-code/testing'
 import { extractPlaylistId, parseTunesArgs } from '../hooks/command-args'
 import { STALE_AFTER_MS, decidePlayback } from '../hooks/coordination'
 import type { PlayerIntent, SessionRecord } from '../hooks/coordination'
+import { resolveRuntimeDir } from '../hooks/services'
 import { SessionActivity } from '../hooks/session-activity'
 import { clockText, marquee } from '../hooks/winamp-view'
 
@@ -122,5 +123,14 @@ describe('winamp view helpers', () => {
   test('the clock reads mm:ss', () => {
     expect(clockText(null)).toBe('--:--')
     expect(clockText(125)).toBe('02:05')
+  })
+})
+
+describe('resolveRuntimeDir', () => {
+  test('uses XDG_RUNTIME_DIR, else ~/.cache, else the plugin folder, never /tmp', () => {
+    expect(resolveRuntimeDir('/run/user/1000', '/home/me', '/plugin')).toBe('/run/user/1000')
+    expect(resolveRuntimeDir(undefined, '/home/me', '/plugin')).toBe('/home/me/.cache')
+    expect(resolveRuntimeDir('', '/home/me', '/plugin')).toBe('/home/me/.cache')
+    expect(resolveRuntimeDir(undefined, '', '/plugin')).toBe('/plugin/.run')
   })
 })

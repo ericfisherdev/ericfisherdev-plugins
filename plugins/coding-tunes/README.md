@@ -53,7 +53,7 @@ The pane docks at the top right, beside the transcript, in Claude Code's fullscr
 
 ## Files it writes
 
-- `$XDG_RUNTIME_DIR/coding-tunes/`: one small record per session, the shared intent, and mpv's socket and lock. It lives in memory and is gone after a reboot.
+- `$XDG_RUNTIME_DIR/coding-tunes/` (or `~/.cache/coding-tunes/` when `XDG_RUNTIME_DIR` is unset; never `/tmp`): one small record per session, the shared intent, and mpv's socket and lock. Under `$XDG_RUNTIME_DIR` it lives in memory and is gone after a reboot.
 - The plugin store: defaults, recent playlists, the browser-login choice, and Spotify tokens.
 
 ## Development
