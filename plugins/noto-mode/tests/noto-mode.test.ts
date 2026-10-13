@@ -58,7 +58,8 @@ test('protected files are never approved by rule', () => {
 })
 
 test('read-only tools, person dialogs and MCP tools', () => {
-  expect(judge('WebFetch', { url: 'https://example.com' }, ctx).kind).toBe('allow')
+  expect(judge('WebFetch', { url: 'https://example.com' }, ctx).kind).toBe('classify')
+  expect(judge('WebSearch', { query: 'vitest config' }, ctx).kind).toBe('allow')
   expect(judge('AskUserQuestion', {}, ctx).kind).toBe('ask')
   expect(judge('mcp__server__tool', {}, ctx).kind).toBe('classify')
   expect(judge('Agent', {}, ctx).kind).toBe('classify')
@@ -72,7 +73,7 @@ test('read-only and project shell commands are allowed', () => {
     'ls -la', 'cat src/index.ts', 'head -n 20 README.md', 'grep -rn TODO src', 'rg foo', 'find . -name "*.ts"',
     'npm test', 'npm run build', 'npm ci', 'pnpm install', 'npx tsc --noEmit', 'npx prettier --check .',
     'pip install -r requirements.txt', 'python -m pytest -q', 'cargo test', 'go vet ./...', 'dotnet build',
-    'mkdir -p out && cp a.txt out/', 'echo hi > notes.txt', 'curl -s https://example.com/api', 'node --version',
+    'mkdir -p out && cp a.txt out/', 'echo hi > notes.txt', 'node --version',
     'cd src && ls', 'git add -A && git commit -m "x"', 'docker ps', 'gh pr view 12', 'NODE_ENV=$(git rev-parse HEAD) echo $NODE_ENV',
     'make test', 'git checkout -b feature/x', 'git switch main', 'timeout 30 npm test', 'env NODE_ENV=test npm test',
   ]) expect([c, sh(c)]).toEqual([c, 'allow'])
@@ -113,7 +114,7 @@ test('gray-area commands go to the classifier', () => {
   for (const c of [
     'rm -rf node_modules', 'rm build/out.js', 'git push', 'git push origin main', 'git rebase main', 'npm install lodash',
     'python script.py', 'node server.js', 'npm run dev', 'npm start', 'make deploy', 'docker compose up -d', 'ssh host ls',
-    'cat .env', 'printenv', 'env | grep -i path', 'curl -X POST -d "a=1" https://x', 'curl -H "Authorization: Bearer x" https://x',
+    'cat .env', 'printenv', 'env | grep -i path', 'curl -s https://example.com/api', 'curl -X POST -d "a=1" https://x', 'curl -H "Authorization: Bearer x" https://x',
     'cp a.txt /other/', 'echo x > /etc/hosts', 'git config --global user.name x', 'npx some-unknown-tool', 'cat data | python x.py',
     'bash deploy.sh', 'open https://example.com', 'kill 1234', 'brew install jq', 'sed -i "s/a/b/" file.txt',
     'cat C:/other/secret.txt', 'cd /other && cat x', 'Invoke-WebRequest -Method Post -Body x https://x', 'gh pr create -t x',

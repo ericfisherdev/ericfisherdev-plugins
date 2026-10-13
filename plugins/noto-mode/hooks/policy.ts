@@ -19,7 +19,7 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== 
 const PERSON_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode'])
 /** Tools that change nothing outside the session. */
 const READ_ONLY_TOOLS = new Set([
-  'WebFetch', 'WebSearch', 'ToolSearch', 'TodoWrite', 'TodoRead', 'BashOutput', 'KillShell', 'KillBash', 'TaskOutput',
+  'WebSearch', 'ToolSearch', 'TodoWrite', 'TodoRead', 'BashOutput', 'KillShell', 'KillBash', 'TaskOutput',
   'TaskStop', 'ListMcpResourcesTool', 'ReadMcpResourceTool', 'Skill', 'ListAgents', 'CronList', 'Monitor',
 ])
 const READ_FILE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead'])
@@ -63,6 +63,9 @@ export function judge(tool: string, input: unknown, ctx: Context): Decision {
   const args = isRecord(input) ? input : {}
   if (PERSON_TOOLS.has(tool)) return ask('a dialog only you can answer', 'nothing to change: this dialog is yours by design')
   if (READ_ONLY_TOOLS.has(tool)) return allow(`${tool} changes nothing`)
+  if (tool === 'WebFetch') {
+    return classify('WebFetch sends a request whose URL can carry data out; the classifier reads where it goes', `add an allow rule like ${suggestRule(tool, args, ctx)} for a host you trust`)
+  }
   if (READ_FILE_TOOLS.has(tool)) return judgeFileRead(tool, args, ctx)
   if (WRITE_FILE_TOOLS.has(tool)) return judgeFileWrite(tool, args, ctx)
   if (tool === 'Bash' || tool === 'PowerShell') {
