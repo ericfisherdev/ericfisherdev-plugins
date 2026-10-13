@@ -632,17 +632,20 @@ function judgeHttp(cmd: string, rest: string[], ctx: Context): Decision {
     const target = rest[i + 1]
     return target === undefined || target.startsWith('-') ? undefined : judgeWritePath(target, ctx, `${cmd} download`)
   }
+  // A GET can still carry data out in its URL, and the mod keeps no list of trusted hosts: the classifier reads where it goes.
+  const get = (written: Decision | undefined): Decision =>
+    worse(classify(`a ${cmd} request, which can carry data out in its URL`), written ?? allow(`${cmd} prints`))
   switch (cmd) {
     case 'curl': {
       const x = rest.findIndex(a => a === '-X' || a === '--request')
       const method = x === -1 ? (rest.find(a => /^-X./.test(a))?.slice(2) ?? 'GET') : (rest[x + 1] ?? 'GET')
       if (!/^(GET|HEAD)$/i.test(method)) return classify(`an HTTP ${method.toUpperCase()}`)
       if (rest.some(a => /^(-d|--data|--data-\w+|-F|--form|--form-string|-T|--upload-file|--json|-K|--config|-I-never)$/.test(a) || /^(-d|-F|-T)\S/.test(a))) return classify('an HTTP request that sends data')
-      return out(/^(-o|--output|--output-dir)$/) ?? allow('a read-only HTTP request')
+      return get(out(/^(-o|--output|--output-dir)$/))
     }
     case 'wget':
       if (rest.some(a => /^(--post-data|--post-file|--body-data|--body-file|--user|--password|--http-user|--http-password|--header)/.test(a) || (/^--method=/.test(a) && !/^--method=(GET|HEAD)$/i.test(a)))) return classify('an HTTP request that sends data or credentials')
-      return out(/^(-O|--output-document|-P|--directory-prefix)$/) ?? allow('a read-only download into the working directory')
+      return get(out(/^(-O|--output-document|-P|--directory-prefix)$/))
     case 'iwr':
     case 'irm':
     case 'invoke-webrequest':
@@ -650,7 +653,7 @@ function judgeHttp(cmd: string, rest: string[], ctx: Context): Decision {
       const m = rest.findIndex(a => /^-method$/i.test(a))
       if (m !== -1 && !/^(get|head)$/i.test(rest[m + 1] ?? 'get')) return classify(`an HTTP ${(rest[m + 1] ?? '').toUpperCase()}`)
       if (rest.some(a => /^-(body|infile|form|contenttype)$/i.test(a))) return classify('an HTTP request that sends data')
-      return out(/^-outfile$/i) ?? allow('a read-only HTTP request')
+      return get(out(/^-outfile$/i))
     }
     case 'http':
     case 'https':
@@ -658,10 +661,10 @@ function judgeHttp(cmd: string, rest: string[], ctx: Context): Decision {
       const first = nonFlags(rest)[0] ?? ''
       if (/^[A-Z]+$/.test(first) && !/^(GET|HEAD)$/.test(first)) return classify(`an HTTP ${first}`)
       if (rest.some(a => /^[\w-]+(:=|=|@)/.test(a) && !/^https?:/.test(a))) return classify('an HTTP request that sends data')
-      return out(/^(-o|--output)$/) ?? allow('a read-only HTTP request')
+      return get(out(/^(-o|--output)$/))
     }
     default:
-      return out(/^(-d|--dir|-o|--out)$/) ?? allow('a download into the working directory')
+      return get(out(/^(-d|--dir|-o|--out)$/))
   }
 }
 
