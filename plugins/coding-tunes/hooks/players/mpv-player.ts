@@ -55,7 +55,7 @@ export class MpvPlayer implements MusicPlayer {
     if (result.exitCode !== 0) return null
     const { hasFailed, ...playing } = JSON.parse(result.stdout) as NowPlaying & { hasFailed?: boolean }
     if (hasFailed === true) {
-      throw new PlayerError('unavailable', 'YouTube could not open the playlist: it is private, deleted, or the id is wrong')
+      throw new PlayerError('unavailable', 'YouTube could not open the playlist (private, deleted, a wrong id, or no network); retrying shortly')
     }
 
     return playing

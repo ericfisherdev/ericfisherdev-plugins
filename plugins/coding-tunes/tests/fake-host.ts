@@ -16,8 +16,10 @@ export type FakeHost = {
   ensureArgs: string[][]
   toasts: string[]
   isMpvPlaying: () => boolean
-  /** Makes mpv report that YouTube refused the playlist. */
+  /** Makes YouTube refuse the playlist: mpv reports the failure until it is restored. */
   failPlaylist: () => void
+  /** Makes YouTube serve the playlist again; the next `ensure` reloads it. */
+  restorePlaylist: () => void
 }
 
 export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonly<Record<string, unknown>> = {}): FakeHost => {
@@ -30,6 +32,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
   const toasts: string[] = []
   let isPlaying = false
   let hasFailed = false
+  let isPlaylistRefused = false
 
   on('session.id', () => ({ value: sessionId }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -61,7 +64,10 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
     const helperAt = e.argv.findIndex(arg => arg.endsWith('mpvctl.py'))
     const command = helperAt < 0 ? '' : (e.argv[helperAt + 2] ?? '')
     if (command !== '' && command !== 'status') mpvCommands.push(command)
-    if (command === 'ensure') ensureArgs.push(e.argv.slice(helperAt + 3))
+    if (command === 'ensure') {
+      ensureArgs.push(e.argv.slice(helperAt + 3))
+      hasFailed = isPlaylistRefused
+    }
     if (command === 'play') isPlaying = true
     if (command === 'pause') isPlaying = false
     const stdout = command === 'status' ? JSON.stringify({ track: 'Llama Song', isPlaying, elapsedSeconds: 42, hasFailed }) : ''
@@ -69,7 +75,12 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
     return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
 
-  return { clock, files, mpvCommands, ensureArgs, toasts, isMpvPlaying: () => isPlaying, failPlaylist: () => void (hasFailed = true) }
+  return { clock, files, mpvCommands, ensureArgs, toasts, isMpvPlaying: () => isPlaying, failPlaylist: () => {
+      isPlaylistRefused = true
+      hasFailed = true
+    },
+    restorePlaylist: () => void (isPlaylistRefused = false),
+  }
 }
 
 /** Another session's record, as that session's own mod would write it. */
