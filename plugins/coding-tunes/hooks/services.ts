@@ -55,6 +55,17 @@ export const buildServices = (host: HostPorts, cwd: string): TunesServices => {
   return { activity, board, sync, controls, flow }
 }
 
+/**
+ * The per-user folder the shared player lives in: $XDG_RUNTIME_DIR, else
+ * ~/.cache, else the plugin's own folder. Never a world-writable one such as
+ * /tmp, where another local user could plant the socket or the records first.
+ */
+export const resolveRuntimeDir = (xdgRuntimeDir: string | undefined, homeDir: string, pluginRoot: string): string => {
+  if (xdgRuntimeDir !== undefined && xdgRuntimeDir !== '') return xdgRuntimeDir
+
+  return homeDir === '' ? `${pluginRoot}/.run` : `${homeDir}/.cache`
+}
+
 /** Sessions show each other as `<folder>#<id prefix>`. */
 export const sessionIdentity = (sessionId: string, cwd: string): SessionIdentity => {
   const folder = cwd.split('/').filter(Boolean).at(-1) ?? 'session'

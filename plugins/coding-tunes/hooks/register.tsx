@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { TunesSnapshot } from '../types'
 import { WORK_THRESHOLD_MS } from './coordination'
 import type { HostPorts } from './ports'
-import { buildServices } from './services'
+import { buildServices, resolveRuntimeDir } from './services'
 import type { TunesServices } from './services'
 import type { ControlOutcome } from './tunes-controls'
 import { WinampView } from './winamp-view'
@@ -30,49 +30,54 @@ const placementHint = (presentation: { isFullscreen: boolean; columns: number })
 }
 
 /** The engine interface as the plain ports the services take. */
-const hostPortsFrom = async ($: EngineInterface): Promise<HostPorts> => ({
-  runner: {
-    run: (argv, timeoutMs) => $.process.run(argv, timeoutMs === undefined ? undefined : { timeoutMs }),
-  },
-  http: {
-    request: async (url, init) => {
-      const reply = await $.http.fetch(url, init)
+const hostPortsFrom = async ($: EngineInterface): Promise<HostPorts> => {
+  const homeDir = (await $.env.get('HOME')) ?? ''
+  const runtimeDir = resolveRuntimeDir(await $.env.get('XDG_RUNTIME_DIR'), homeDir, $.plugin.root)
 
-      return { status: reply.status, ok: reply.ok, text: reply.text }
+  return {
+    runner: {
+      run: (argv, timeoutMs) => $.process.run(argv, timeoutMs === undefined ? undefined : { timeoutMs }),
     },
-  },
-  files: {
-    read: path => $.fs.read(path).then(text => text, () => undefined),
-    write: (path, text) => $.fs.write(path, text),
-    list: dir => $.fs.list(dir).then(entries => entries.map(entry => entry.name), () => []),
-    remove: async path => {
-      await $.process.run(['rm', '-f', '--', path])
+    http: {
+      request: async (url, init) => {
+        const reply = await $.http.fetch(url, init)
+
+        return { status: reply.status, ok: reply.ok, text: reply.text }
+      },
     },
-  },
-  localFiles: {
-    read: path => $.fs.read(path).then(text => text, () => undefined),
-    exists: path => $.fs.exists(path),
-  },
-  store: {
-    get: key => $.store.get(key),
-    set: (key, value) => $.store.set(key, value),
-  },
-  clock: { now: () => $.clock.now() },
-  snapshots: {
-    show: async snapshot => {
-      await $.state.set(SNAPSHOT, snapshot)
+    files: {
+      read: path => $.fs.read(path).then(text => text, () => undefined),
+      write: (path, text) => $.fs.write(path, text),
+      list: dir => $.fs.list(dir).then(entries => entries.map(entry => entry.name), () => []),
+      remove: async path => {
+        await $.process.run(['rm', '-f', '--', path])
+      },
     },
-  },
-  notifier: {
-    notify: text => $.ui.toast(text),
-    log: text => $.ui.log(text),
-  },
-  prompter: { ask: (question, options) => $.ui.ask(question, options) },
-  pluginRoot: $.plugin.root,
-  runtimeDir: (await $.env.get('XDG_RUNTIME_DIR')) ?? '/tmp',
-  homeDir: (await $.env.get('HOME')) ?? '',
-  sessionId: await $.session.id(),
-})
+    localFiles: {
+      read: path => $.fs.read(path).then(text => text, () => undefined),
+      exists: path => $.fs.exists(path),
+    },
+    store: {
+      get: key => $.store.get(key),
+      set: (key, value) => $.store.set(key, value),
+    },
+    clock: { now: () => $.clock.now() },
+    snapshots: {
+      show: async snapshot => {
+        await $.state.set(SNAPSHOT, snapshot)
+      },
+    },
+    notifier: {
+      notify: text => $.ui.toast(text),
+      log: text => $.ui.log(text),
+    },
+    prompter: { ask: (question, options) => $.ui.ask(question, options) },
+    pluginRoot: $.plugin.root,
+    runtimeDir,
+    homeDir,
+    sessionId: await $.session.id(),
+  }
+}
 
 const EMPTY_SNAPSHOT: TunesSnapshot = {
   player: null,
