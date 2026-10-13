@@ -25,6 +25,13 @@ const INERT_ENV = /^(NODE_ENV|CI|DEBUG|RUST_LOG|RUST_BACKTRACE|LANG|LANGUAGE|LC_
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)\+?=/
 const DECLARERS = set('export declare typeset readonly local')
 
+/** What a declaring builtin (export, declare, ...) sets: NAME=value, or NAME alone, which exports a value set elsewhere. */
+function judgeDeclaration(cmd: string, rest: readonly string[]): Decision {
+  const names = rest.filter(a => !a.startsWith('-') && !a.startsWith('+'))
+  if (names.some(a => a.includes(SUB) || /^\$|^[^=]*\$/.test(a))) return classify(`${cmd} with a variable named at run time`)
+  return worse(allow(`the shell builtin ${cmd}`), judgeAssignments(names.map(a => (a.includes('=') ? a : `${a}=`))))
+}
+
 function judgeAssignments(assignments: readonly string[]): Decision {
   for (const a of assignments) {
     const name = ASSIGNMENT.exec(a)?.[1]
@@ -111,7 +118,12 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return judgeArgv(baseName(h), next.slice(1), seg, flavor, ctx)
   }
   if (R.WRAPPERS.has(cmd)) return judgeWrapped(cmd, rest, again)
-  if (DECLARERS.has(cmd)) return worse(allow(`the shell builtin ${cmd}`), judgeAssignments(rest))
+  if (DECLARERS.has(cmd)) return judgeDeclaration(cmd, rest)
+  if (cmd === 'alias') return rest.length === 0 ? allow('lists aliases') : classify('defines an alias, which can replace a command')
+  if (cmd === 'printf') {
+    const v = rest.findIndex(a => a === '-v')
+    if (v !== -1) return judgeDeclaration('printf -v', [rest[v + 1] ?? '$'])
+  }
   if (R.BUILTINS.has(cmd)) return allow(`the shell builtin ${cmd}`)
   if (cmd === 'source' || cmd === '.') return classify('sources a script into the shell')
   if (cmd === 'eval' || cmd === 'invoke-expression' || cmd === 'iex') {
@@ -233,7 +245,8 @@ function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => De
   const assignments: string[] = []
   while (i < rest.length) {
     const a = rest[i] as string
-    if (cmd === 'env' && /^(-S|--split-string)(=.*)?$/.test(a)) return classify('env -S splits a string into a command')
+    if (cmd === 'env' && /^(-[a-zA-Z0-9]*S|--split-string)/.test(a)) return classify('env -S splits a string into a command')
+    if (cmd === 'env' && /^(-[a-zA-Z0-9]*C|--chdir)/.test(a)) return classify('env -C runs the command in another directory')
     if (cmd === 'env' && ASSIGNMENT.test(a)) {
       assignments.push(a)
       i++
@@ -592,6 +605,9 @@ function judgePaths(args: readonly string[], ctx: Context, what: string): Decisi
 }
 
 export function judgeWritePath(spelling: string, ctx: Context, what: string): Decision {
+  if (/^(env|variable|function|alias|registry|hk(lm|cu|cr|u|cc)|cert|wsman):/i.test(spelling)) {
+    return classify(`${what} to a PowerShell drive (${spelling}), not a file`)
+  }
   if (spelling.includes(SUB) || /\$|%[^%]+%/.test(spelling)) return classify(`${what} to a path the shell names at run time`)
   const p = normalizePath(spelling, ctx.cwd)
   if (p === undefined) return classify(`${what} to a path only the shell expands`)

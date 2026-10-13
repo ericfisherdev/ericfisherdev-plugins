@@ -108,3 +108,24 @@ test('sort with a compression program goes to the classifier', () => {
   expect(sh('sort --compress-program=/tmp/evil big.txt')).toBe('classify')
   expect(sh('sort -u names.txt')).toBe('allow')
 })
+
+test('variables set by name at run time, by printf -v or by a bare export go to the classifier', () => {
+  expect(sh('export "$NAME=x"; git log')).toBe('classify')
+  expect(sh(`printf -v PAGER 'touch x'; git log`)).toBe('classify')
+  expect(sh('export PAGER; git log')).toBe('classify')
+  expect(sh('export NODE_ENV')).toBe('allow')
+  expect(sh(`printf -v NODE_ENV '%s' test`)).toBe('allow')
+})
+
+test('aliases, env -C and attached env -S go to the classifier', () => {
+  expect(sh(`alias git='touch /tmp/pwn'`)).toBe('classify')
+  expect(sh('alias')).toBe('allow')
+  expect(sh('env -C /tmp/evilrepo git status')).toBe('classify')
+  expect(sh('env --chdir=/tmp/evilrepo git status')).toBe('classify')
+  expect(sh('env -iS x')).toBe('classify')
+})
+
+test('PowerShell drives such as env: are never treated as files', () => {
+  expect(judgeShell('New-Item -Path env:GIT_PAGER -Value calc', 'powershell', ctx).kind).toBe('classify')
+  expect(judgeShell('New-Item -Path notes.txt', 'powershell', ctx).kind).toBe('allow')
+})
