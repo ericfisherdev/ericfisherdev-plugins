@@ -61,6 +61,43 @@ describe('automatic playback', () => {
   })
 })
 
+describe('slash-command controls', () => {
+  const command = ($: Engine, args: string) =>
+    $.command.run({ command: 'coding-tunes', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+
+  test('--pause, --next and --play drive the player mid-turn, as the pane buttons do', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    await $.turn.start({ text: 'long job', turnId: 'turn-1' })
+    await host.clock.advance(11_000)
+    expect(host.isMpvPlaying()).toBe(true)
+
+    expect((await command($, '--pause')).text).toContain('Paused')
+    expect(host.isMpvPlaying()).toBe(false)
+    await command($, '--next')
+    expect(host.mpvCommands).toContain('next')
+    await command($, '--play')
+    expect(host.isMpvPlaying()).toBe(true)
+  })
+
+  test('--play is refused while another session waits on input', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    writeForeignSession(host, 'session-other', 'question')
+    expect((await command($, '--play')).text).toContain('waiting for your input')
+    expect(host.isMpvPlaying()).toBe(false)
+  })
+
+  test('a command that would ask a question is refused while Claude works', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await startSession($)
+    await $.turn.start({ text: 'long job', turnId: 'turn-1' })
+    expect((await command($, '--setup')).text).toContain('once Claude is idle')
+    expect((await command($, '')).text).toContain('once Claude is idle')
+    await host.clock.advance(0)
+  })
+})
+
 describe('browser login', () => {
   test('a saved browser login is passed to mpv as the yt-dlp cookie source', async ($, on) => {
     const zen = { label: 'Zen', browser: 'firefox', profile: '/home/me/.zen/abc.Default (alpha)' }

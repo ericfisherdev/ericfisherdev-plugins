@@ -7,7 +7,7 @@ import { SpotifyAuth, XdgLoginBrowser } from './players/spotify-auth'
 import { SpotifyPlayer } from './players/spotify-player'
 import { PlaybackSync } from './playback-sync'
 import type { SessionIdentity } from './playback-sync'
-import type { CommandRunner, HostPorts } from './ports'
+import type { CommandRunner, HostPorts, Prompter } from './ports'
 import { SessionActivity } from './session-activity'
 import { TunesCommandFlow } from './tunes-command'
 import type { DependencyCheck } from './tunes-command'
@@ -46,7 +46,7 @@ export const buildServices = (host: HostPorts, cwd: string): TunesServices => {
   const flow = new TunesCommandFlow(
     controls,
     preferences,
-    host.prompter,
+    idleOnlyPrompter(host.prompter, activity),
     { link: clientId => auth.authorize(clientId, browser) },
     dependencyCheck(host.runner, auth),
     new BrowserCookieFinder(host.localFiles, host.homeDir),
@@ -65,6 +65,13 @@ export const resolveRuntimeDir = (xdgRuntimeDir: string | undefined, homeDir: st
 
   return homeDir === '' ? `${pluginRoot}/.run` : `${homeDir}/.cache`
 }
+
+const MID_TURN = 'Claude is working, so this would open a question over the turn: run it once Claude is idle. While it works, use /coding-tunes --play, --pause, --next or --prev.'
+
+/** Questions wait for an idle Claude: the command runs mid-turn, and a dialog must not open over the turn. */
+const idleOnlyPrompter = (prompter: Prompter, activity: SessionActivity): Prompter => ({
+  ask: (question, options) => (activity.isWorking() ? Promise.reject(new Error(MID_TURN)) : prompter.ask(question, options)),
+})
 
 /** Sessions show each other as `<folder>#<id prefix>`. */
 export const sessionIdentity = (sessionId: string, cwd: string): SessionIdentity => {

@@ -51,7 +51,7 @@
       "name": "coding-tunes",
       "source": "./plugins/coding-tunes",
       "description": "Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane",
-      "version": "1.0.6",
+      "version": "1.1.0",
       "keywords": ["music", "youtube-music", "spotify", "winamp", "mpv", "pane", "hooks", "mod", "quality-of-life"]
     }
   ]

@@ -40,6 +40,17 @@ describe('parseTunesArgs', () => {
     expect(parseTunesArgs('--stop')).toEqual({ kind: 'stop' })
   })
 
+  test('reads the transport flags, one at a time and without a value', () => {
+    expect(parseTunesArgs('--play')).toEqual({ kind: 'control', action: 'play' })
+    expect(parseTunesArgs('--pause')).toEqual({ kind: 'control', action: 'pause' })
+    expect(parseTunesArgs('--next')).toEqual({ kind: 'control', action: 'next' })
+    expect(parseTunesArgs('--prev')).toEqual({ kind: 'control', action: 'previous' })
+    expect(parseTunesArgs('--previous')).toEqual({ kind: 'control', action: 'previous' })
+    expect(parseTunesArgs('--play --next').kind).toBe('invalid')
+    expect(parseTunesArgs('--pause --list=PLabc').kind).toBe('invalid')
+    expect(parseTunesArgs('--next=2').kind).toBe('invalid')
+  })
+
   test('refuses an unknown player, flag or bare word', () => {
     expect(parseTunesArgs('--player=winamp').kind).toBe('invalid')
     expect(parseTunesArgs('--volume=11').kind).toBe('invalid')
