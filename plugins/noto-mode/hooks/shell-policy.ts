@@ -373,26 +373,44 @@ function resolveGitRepoPath(spelling: string | undefined, base: string, ctx: Con
   return p
 }
 
-/** Subcommand options that run a program of the caller's choosing or install hooks. */
-const GIT_PROGRAM_OPTIONS: Readonly<Record<string, RegExp>> = {
-  grep: /^(-[a-zA-Z]*O|--open-files-in-pager)/,
-  'ls-remote': /^--upload-pack/,
-  fetch: /^--upload-pack/,
-  pull: /^--upload-pack/,
-  clone: /^(-[a-zA-Z]*[uc]|--upload-pack|--config|--template)/,
-  init: /^--template/,
-  archive: /^--exec/,
+/** Options that run a program of the caller's choosing or install hooks: short spellings, and long names matched by prefix as parse-options does. */
+interface ProgramOptions {
+  readonly short?: RegExp
+  readonly long: readonly string[]
+}
+
+const GIT_PROGRAM_OPTIONS: Readonly<Record<string, ProgramOptions>> = {
+  grep: { short: /^-[a-zA-Z]*O/, long: ['--open-files-in-pager'] },
+  'ls-remote': { short: /^-[a-zA-Z]*u/, long: ['--upload-pack', '--exec'] },
+  fetch: { long: ['--upload-pack'] },
+  pull: { long: ['--upload-pack'] },
+  clone: { short: /^-[a-zA-Z]*[uc]/, long: ['--upload-pack', '--config', '--template'] },
+  init: { long: ['--template'] },
+  archive: { long: ['--exec'] },
+}
+
+const runsProgram = (options: ProgramOptions, a: string): boolean =>
+  options.short?.test(a) === true || options.long.some(name => longOpt(a, name))
+
+/** The file a subcommand writes: `--output[=]<file>`, or archive's `-o[<file>]`. */
+function gitOutputTarget(sub: string, rest: readonly string[]): string | undefined {
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a === '--output' || (sub === 'archive' && a === '-o')) return rest[i + 1] ?? ''
+    if (a.startsWith('--output=')) return a.slice('--output='.length)
+    if (sub === 'archive' && /^-o./.test(a)) return a.slice(2)
+  }
+  return undefined
 }
 
 /** What a subcommand's options add on top of the subcommand itself, if anything. */
 function judgeGitOptions(sub: string, rest: string[], ctx: Context): Decision | undefined {
   const runs = GIT_PROGRAM_OPTIONS[sub]
-  if (runs !== undefined && rest.some(a => runs.test(a))) return classify(`git ${sub} with an option that runs a program or installs hooks`)
+  if (runs !== undefined && rest.some(a => runsProgram(runs, a))) return classify(`git ${sub} with an option that runs a program or installs hooks`)
   if (sub === 'submodule' && nonFlags(rest)[0] === 'foreach') return classify('git submodule foreach runs a command in every submodule')
-  const o = rest.findIndex(a => a === '--output' || a.startsWith('--output='))
-  if (o === -1) return undefined
-  const target = rest[o]?.startsWith('--output=') === true ? rest[o]?.slice('--output='.length) : rest[o + 1]
-  const written = judgeWritePath(target ?? '', ctx, `git ${sub} --output`)
+  const target = gitOutputTarget(sub, rest)
+  if (target === undefined) return undefined
+  const written = judgeWritePath(target, ctx, `git ${sub} --output`)
   return written.kind === 'allow' ? undefined : written
 }
 
