@@ -1,0 +1,21 @@
+{
+  "name": "coding-tunes",
+  "version": "1.0.0",
+  "description": "Plays a YouTube Music or Spotify playlist while Claude works, pauses whenever any session needs your input, in a Winamp-style pane shared by every session on the machine.",
+  "author": {
+    "name": "Eric Fisher"
+  },
+  "license": "MIT",
+  "keywords": [
+    "music",
+    "youtube-music",
+    "spotify",
+    "winamp",
+    "mpv",
+    "pane",
+    "hooks",
+    "mod",
+    "quality-of-life"
+  ],
+  "types": "./types/index.d.ts"
+}
