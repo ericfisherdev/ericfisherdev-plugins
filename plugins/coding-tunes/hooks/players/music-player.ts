@@ -12,6 +12,7 @@ export type PlayerFailure =
   | 'not-authorized'
   | 'premium-required'
   | 'no-device'
+  | 'load-failed'
   | 'unavailable'
 
 export class PlayerError extends Error {
@@ -28,7 +29,8 @@ export class PlayerError extends Error {
  * One music service's controls. Every method may reject with PlayerError:
  * `missing-dependency` (mpv or yt-dlp absent), `not-authorized` (no or
  * expired Spotify login), `premium-required`, `no-device` (no open Spotify
- * client), `unavailable` (the player did not answer).
+ * client), `load-failed` (the player or the playlist would not open),
+ * `unavailable` (the player did not answer).
  */
 export interface MusicPlayer {
   readonly kind: PlayerKind

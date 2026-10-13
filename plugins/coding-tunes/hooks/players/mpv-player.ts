@@ -32,7 +32,7 @@ export class MpvPlayer implements MusicPlayer {
     private readonly cookies: CookieSourceSetting,
   ) {}
 
-  /** Rejects with PlayerError `missing-dependency` or `unavailable`. */
+  /** Rejects with PlayerError `missing-dependency` or `load-failed`. */
   async load(playlistId: string): Promise<void> {
     const url = youTubeMusicPlaylistUrl(playlistId)
     const source = await this.cookies.ytCookieSource()
@@ -41,7 +41,7 @@ export class MpvPlayer implements MusicPlayer {
     if (result.exitCode === EXIT_MISSING_DEPENDENCY) {
       throw new PlayerError('missing-dependency', `${result.stderr.trim()}: install mpv and yt-dlp with your package manager`)
     }
-    if (result.exitCode !== 0) throw new PlayerError('unavailable', 'mpv did not start')
+    if (result.exitCode !== 0) throw new PlayerError('load-failed', 'mpv did not start')
   }
 
   play = (): Promise<void> => this.control('play')
@@ -49,13 +49,13 @@ export class MpvPlayer implements MusicPlayer {
   next = (): Promise<void> => this.control('next')
   previous = (): Promise<void> => this.control('prev')
 
-  /** Rejects with PlayerError `unavailable` when YouTube refused the playlist. */
+  /** Rejects with PlayerError `load-failed` when YouTube refused the playlist. */
   async nowPlaying(): Promise<NowPlaying | null> {
     const result = await this.runner.run(this.helperArgv('status'))
     if (result.exitCode !== 0) return null
     const { hasFailed, ...playing } = JSON.parse(result.stdout) as NowPlaying & { hasFailed?: boolean }
     if (hasFailed === true) {
-      throw new PlayerError('unavailable', 'YouTube could not open the playlist (private, deleted, a wrong id, or no network); retrying shortly')
+      throw new PlayerError('load-failed', 'YouTube could not open the playlist (private, deleted, a wrong id, or no network); retrying shortly')
     }
 
     return playing

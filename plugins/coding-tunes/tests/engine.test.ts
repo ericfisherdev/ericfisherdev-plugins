@@ -106,6 +106,38 @@ describe('playlist errors', () => {
   })
 })
 
+describe('pausing after a player error', () => {
+  const openPermissionPrompt = ($: Engine) =>
+    $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'rm -rf build' } })
+
+  const playingSession = async ($: Engine, host: ReturnType<typeof installFakeHost>) => {
+    await startSession($)
+    await $.turn.start({ text: 'long job', turnId: 'turn-1' })
+    await host.clock.advance(11_000)
+    expect(host.isMpvPlaying()).toBe(true)
+  }
+
+  test('a transient player error does not stop a permission prompt from pausing', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await playingSession($, host)
+    host.failNextRun('status')
+    await host.clock.advance(3_000)
+
+    await openPermissionPrompt($)
+    expect(host.isMpvPlaying()).toBe(false)
+  })
+
+  test('while a failed load waits to retry, a permission prompt still pauses', async ($, on) => {
+    const host = installFakeHost(on, 'session-mine')
+    await playingSession($, host)
+    host.failPlaylist()
+    await host.clock.advance(3_000)
+
+    await openPermissionPrompt($)
+    expect(host.isMpvPlaying()).toBe(false)
+  })
+})
+
 describe('play and pause overrides', () => {
   test('clearing a pause when a turn starts never rewrites the intent a --stop wrote', async ($, on) => {
     const host = installFakeHost(on, 'session-mine')
