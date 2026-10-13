@@ -133,12 +133,15 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return rest.some(a => /^-(delete|exec|execdir|ok|okdir|fprint|fls|fprintf)$/.test(a)) ? classify('a find that deletes or executes') : allow('find is read-only')
   }
   if (cmd === 'sed' || cmd === 'yq') {
-    return rest.some(a => /^-[a-zA-Z]*i|^--in-place/.test(a)) ? classify(`an in-place ${cmd} edit`) : allow(`${cmd} prints`)
+    if (rest.some(a => /^-[a-zA-Z]*i|^--in-place/.test(a))) return classify(`an in-place ${cmd} edit`)
+    if (cmd === 'sed' && sedRunsOrWrites(rest)) return classify('a sed script that runs commands or writes files')
+    return allow(`${cmd} prints`)
   }
   if (cmd === 'awk' || cmd === 'gawk' || cmd === 'mawk') {
-    return rest.some(a => /system\s*\(|>\s*"/.test(a)) ? classify('an awk program that runs commands or writes files') : allow('awk prints')
+    return awkRunsOrWrites(rest) ? classify('an awk program that runs commands, reads their output or writes files') : allow('awk prints')
   }
   if (cmd === 'sort') {
+    if (rest.some(a => /^--compress-program/.test(a))) return classify('sort runs a compression program')
     const o = rest.findIndex(a => a === '-o' || a === '--output')
     if (o !== -1) return judgeWritePath(rest[o + 1] ?? '', ctx, 'sort -o')
     return allow('sort prints')
@@ -173,6 +176,47 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
     return rest.some(a => a.startsWith('--')) ? classify(`${cmd} with options`) : allow(`opens the editor`)
   }
   return classify(`${cmd} is not in the read-only or project command set`)
+}
+
+/** The scripts sed will run: each -e value, else the first operand. */
+function sedScripts(rest: readonly string[]): string[] {
+  const scripts: string[] = []
+  let operand: string | undefined
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a.startsWith('--expression=')) scripts.push(a.slice('--expression='.length))
+    else if (a === '--expression' || /^-[a-zA-Z]*e$/.test(a)) scripts.push(rest[++i] ?? '')
+    else if (/^-[a-zA-Z]*e./.test(a)) scripts.push(a.slice(a.indexOf('e') + 1))
+    else if (a === '-l' || a === '--line-length') i++
+    else if (operand === undefined && (!a.startsWith('-') || a === '-')) operand = a
+  }
+  return scripts.length > 0 ? scripts : operand === undefined ? [] : [operand]
+}
+
+/**
+ * Whether sed may run a command (`e`, the `s///e` flag) or write a file (`w`,
+ * `W`, the `s///w` flag). Patterns and replacements are blanked first so a `w`
+ * inside `s/word/x/` does not count; text after `a`, `i` or `c` still does,
+ * which errs toward the classifier. `--sandbox` disables all of them.
+ */
+function sedRunsOrWrites(rest: readonly string[]): boolean {
+  if (rest.includes('--sandbox')) return false
+  if (rest.some(a => /^(-[a-zA-Z]*f|--file)/.test(a))) return true
+  return sedScripts(rest).some(script => {
+    const commands = script
+      .replace(/s(.)(?:\\.|(?!\1)[^\\])*\1(?:\\.|(?!\1)[^\\])*\1/g, 's')
+      .replace(/y(.)(?:\\.|(?!\1)[^\\])*\1(?:\\.|(?!\1)[^\\])*\1/g, 'y')
+      .replace(/\/(?:\\.|[^\\/])*\//g, '')
+      .replace(/\\(.)(?:\\.|(?!\1)[^\\])*\1/g, '')
+    return /[ewW]/.test(commands)
+  })
+}
+
+/** Whether an awk program may run a command, read its output or write a file. `--sandbox` (gawk) forbids all three. */
+function awkRunsOrWrites(rest: readonly string[]): boolean {
+  if (rest.includes('--sandbox')) return false
+  if (rest.some(a => /^(-[a-zA-Z]*[fEil]|--file|--exec|--include|--load)/.test(a) && !/^-[vF]/.test(a))) return true
+  return nonFlags(rest).some(a => /\||getline|system\s*\(|close\s*\(|>/.test(a))
 }
 
 function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => Decision): Decision {

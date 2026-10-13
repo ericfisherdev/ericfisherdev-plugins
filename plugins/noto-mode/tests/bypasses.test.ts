@@ -73,3 +73,38 @@ test('ordinary git subcommand options stay allowed', () => {
   expect(sh('git log --output=notes/log.txt')).toBe('allow')
   expect(sh('git commit -c HEAD')).toBe('allow')
 })
+
+test('sed scripts that run commands or write files go to the classifier', () => {
+  expect(sh(`sed -n '1e touch /tmp/pwn' README.md`)).toBe('classify')
+  expect(sh(`sed 'w /tmp/out' README.md`)).toBe('classify')
+  expect(sh(`sed -n '/x/W /tmp/out' README.md`)).toBe('classify')
+  expect(sh(`sed 's/x/touch \\/tmp\\/pwn/e' README.md`)).toBe('classify')
+  expect(sh(`sed 's/a/b/w /tmp/out' README.md`)).toBe('classify')
+  expect(sh(`sed -ne '1e id' README.md`)).toBe('classify')
+  expect(sh(`sed --expression='w /tmp/out' README.md`)).toBe('classify')
+  expect(sh('sed -f script.sed README.md')).toBe('classify')
+})
+
+test('sed that only prints or substitutes stays allowed', () => {
+  expect(sh(`sed -n 1,5p README.md`)).toBe('allow')
+  expect(sh(`sed 's/word/were/g' README.md`)).toBe('allow')
+  expect(sh(`sed -e '/^$/d' -e 's|/usr/www|/srv|' conf.txt`)).toBe('allow')
+  expect(sh(`sed --sandbox 'w out' README.md`)).toBe('allow')
+})
+
+test('awk programs that run commands, read their output or write files go to the classifier', () => {
+  expect(sh(`awk 'BEGIN { print "x" | "sh" }'`)).toBe('classify')
+  expect(sh(`awk 'BEGIN { while (("id" | getline l) > 0) print l }'`)).toBe('classify')
+  expect(sh(`awk 'BEGIN { system("id") }'`)).toBe('classify')
+  expect(sh(`awk '{ print > "/tmp/out" }' README.md`)).toBe('classify')
+  expect(sh('awk -f prog.awk README.md')).toBe('classify')
+  expect(sh('gawk -E prog.awk README.md')).toBe('classify')
+  expect(sh(`awk '{print $1}' README.md`)).toBe('allow')
+  expect(sh(`awk -F: -v n=2 '{print $n}' README.md`)).toBe('allow')
+  expect(sh(`gawk --sandbox 'BEGIN { system("id") }'`)).toBe('allow')
+})
+
+test('sort with a compression program goes to the classifier', () => {
+  expect(sh('sort --compress-program=/tmp/evil big.txt')).toBe('classify')
+  expect(sh('sort -u names.txt')).toBe('allow')
+})
