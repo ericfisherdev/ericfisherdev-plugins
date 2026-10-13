@@ -64,6 +64,15 @@ test('git subcommand options that run programs or install hooks go to the classi
   expect(sh('git init --template=/tmp/hooks')).toBe('classify')
   expect(sh(`git submodule foreach 'rm -rf build'`)).toBe('classify')
   expect(sh('git log --output=/tmp/out.txt')).toBe('classify')
+  expect(sh('git grep --open=vim TODO')).toBe('classify')
+  expect(sh(`git ls-remote --upload='touch /tmp/pwn' ./r`)).toBe('classify')
+  expect(sh(`git ls-remote --exec='touch /tmp/pwn' ./r`)).toBe('classify')
+  expect(sh(`git ls-remote -u 'touch /tmp/pwn' ./r`)).toBe('classify')
+  expect(sh(`git fetch --upload-p='touch /tmp/pwn' ../r`)).toBe('classify')
+  expect(sh('git init --temp=/tmp/hooks')).toBe('classify')
+  expect(sh('git clone --templ=/tmp/hooks --conf core.fsmonitor=x ./r')).toBe('classify')
+  expect(sh('git archive -o /tmp/x.tar HEAD')).toBe('classify')
+  expect(sh('git archive -o/tmp/x.tar HEAD')).toBe('classify')
 })
 
 test('ordinary git subcommand options stay allowed', () => {
@@ -72,6 +81,8 @@ test('ordinary git subcommand options stay allowed', () => {
   expect(sh('git clone https://example.com/r.git')).toBe('allow')
   expect(sh('git submodule update --init')).toBe('allow')
   expect(sh('git log --output=notes/log.txt')).toBe('allow')
+  expect(sh('git archive -o build/src.tar HEAD')).toBe('allow')
+  expect(sh('git grep --or -e a -e b')).toBe('allow')
   expect(sh('git commit -c HEAD')).toBe('allow')
 })
 
