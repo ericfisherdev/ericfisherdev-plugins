@@ -1,6 +1,6 @@
 {
   "name": "noto-mode",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Approves the permission prompts auto mode would skip (read-only actions, edits in the project, a classifier for the rest) and explains every prompt that still reaches you.",
   "author": {
     "name": "Eric Fisher"

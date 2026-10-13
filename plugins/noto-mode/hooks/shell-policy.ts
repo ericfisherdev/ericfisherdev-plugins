@@ -295,8 +295,8 @@ function judgeWrapped(cmd: string, rest: string[], again: (argv: string[]) => De
   const assignments: string[] = []
   while (i < rest.length) {
     const a = rest[i] as string
-    if (cmd === 'env' && /^(-[a-zA-Z0-9]*S|--split-string)/.test(a)) return classify('env -S splits a string into a command')
-    if (cmd === 'env' && /^(-[a-zA-Z0-9]*C|--chdir)/.test(a)) return classify('env -C runs the command in another directory')
+    if (cmd === 'env' && (/^-[a-zA-Z0-9]*S/.test(a) || longOpt(a, '--split-string'))) return classify('env -S splits a string into a command')
+    if (cmd === 'env' && (/^-[a-zA-Z0-9]*C/.test(a) || longOpt(a, '--chdir'))) return classify('env -C runs the command in another directory')
     if (cmd === 'env' && ASSIGNMENT.test(a)) {
       assignments.push(a)
       i++

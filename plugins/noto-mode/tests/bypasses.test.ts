@@ -154,6 +154,9 @@ test('aliases, env -C and attached env -S go to the classifier', () => {
   expect(sh('env -C /tmp/evilrepo git status')).toBe('classify')
   expect(sh('env --chdir=/tmp/evilrepo git status')).toBe('classify')
   expect(sh('env -iS x')).toBe('classify')
+  expect(sh(`env --sp='sh -c id' cat`)).toBe('classify')
+  expect(sh(`env --s 'sh -c id' cat`)).toBe('classify')
+  expect(sh('env --ch=/tmp/evilrepo git status')).toBe('classify')
 })
 
 test('PowerShell drives such as env: are never treated as files', () => {
