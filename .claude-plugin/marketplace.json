@@ -58,7 +58,7 @@
       "name": "architecture-tools",
       "source": "./plugins/architecture-tools",
       "description": "Full architecture, behavioral, and forensic code analysis that writes numbered markdown documents for a repository or mono-repo subdirectory",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "keywords": ["architecture", "analysis", "documentation", "security-audit", "hotspots", "git-forensics", "code-quality"]
     }
   ]

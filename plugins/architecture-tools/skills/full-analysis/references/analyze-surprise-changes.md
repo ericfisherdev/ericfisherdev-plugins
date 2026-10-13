@@ -29,15 +29,22 @@ git log --since="{since_2x}" --format="AUTHOR:%aN" --name-only
 
 For each author, compute commit count per module. Their "domain" is any module where they've contributed ≥ 10% of their commits.
 
-### 2. Identify Dormant Files
+### 2. Measure Dormancy per Commit
 
-A file is **dormant** if it hasn't been modified in the last 90 days (configurable):
+Dormancy belongs to a commit, not to today: a file is **dormant at a commit** when its previous change came more than 90 days (configurable) before that commit. Measure the gap for every (commit, file) pair in the analysis window in one pass over the whole history:
 
 ```bash
-comm -23 \
-  <(git log --since="{since_2x}" --until="{since}" --format="" --name-only | sort -u) \
-  <(git log --since="{since}" --format="" --name-only | sort -u)
+git log --reverse --no-renames --format="COMMIT:%H %at" --name-only | awk '
+  NR == FNR { in_window[$0] = 1; next }
+  /^COMMIT:/ { commit = substr($1, 8); at = $2; next }
+  NF {
+    gap = ($0 in last) ? int((at - last[$0]) / 86400) : -1
+    if (commit in in_window) print commit "\t" gap "\t" $0
+    last[$0] = at
+  }' <(git log --since="{since}" --format="%H") -
 ```
+
+Each line is `<commit>\t<gap in days>\t<file>`. A gap of `-1` means the commit created the file: new, not dormant. Because the walk covers all history, a file untouched for years is measured too. For a single pair, `git log -1 --format="%at" <commit>^ -- <file>` gives the previous change time (skip it for a root commit, which has no parent).
 
 ### 3. Scan Recent Commits for Surprises
 
@@ -53,7 +60,7 @@ Flag a commit as a "surprise" if:
 The author modified a file in a module that is NOT in their domain map. This means they're working in unfamiliar territory.
 
 #### b. Dormant File Awakening
-The commit touches a file that was dormant (no changes in 90+ days). Someone is reviving old code.
+The commit touches a file whose gap from Step 2 is more than 90 days: its previous change came 90+ days before this commit. Someone is reviving old code.
 
 #### c. Both (Highest Risk)
 An out-of-domain author touching a dormant file — they lack context AND the file hasn't been validated recently.
@@ -67,7 +74,7 @@ surprise_risk = domain_familiarity_factor × dormancy_factor × change_size_fact
 | Factor | Low Risk | Medium Risk | High Risk |
 |--------|----------|-------------|-----------|
 | Domain familiarity | Author's home module | Adjacent module | Unfamiliar module |
-| Dormancy | Active (< 30d) | Aging (30–90d) | Dormant (> 90d) |
+| Dormancy (Step 2 gap) | Active (< 30d) or new file | Aging (30–90d) | Dormant (> 90d) |
 | Change size | < 10 lines | 10–50 lines | > 50 lines |
 
 ### 5. Cross-Reference with Subsequent Fixes
