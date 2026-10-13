@@ -22,6 +22,8 @@ export type FakeHost = {
   failPlaylist: () => void
   /** Makes YouTube serve the playlist again; the next `ensure` reloads it. */
   restorePlaylist: () => void
+  /** Makes the next mpvctl call of `command` fail to run at all (a timeout, say). */
+  failNextRun: (command: string) => void
 }
 
 export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonly<Record<string, unknown>> = {}): FakeHost => {
@@ -36,10 +38,12 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
   let isPlaying = false
   let hasFailed = false
   let isPlaylistRefused = false
+  let commandToFail: string | undefined
 
   on('session.id', () => ({ value: sessionId }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  on('classic.PermissionRequest', () => ({}))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -68,6 +72,10 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
   on('process.run', ($, e) => {
     const helperAt = e.argv.findIndex(arg => arg.endsWith('mpvctl.py'))
     const command = helperAt < 0 ? '' : (e.argv[helperAt + 2] ?? '')
+    if (command !== '' && command === commandToFail) {
+      commandToFail = undefined
+      return { deny: `mpvctl ${command} timed out` }
+    }
     if (command !== '' && command !== 'status') mpvCommands.push(command)
     if (command === 'ensure') {
       ensureArgs.push(e.argv.slice(helperAt + 3))
@@ -85,6 +93,7 @@ export const installFakeHost = (on: On, sessionId: string, storeEntries: Readonl
       hasFailed = true
     },
     restorePlaylist: () => void (isPlaylistRefused = false),
+    failNextRun: (command: string) => void (commandToFail = command),
   }
 }
 

@@ -1,7 +1,7 @@
 import { decidePlayback, liveRecords } from './coordination'
 import type { PlaybackDecision, PlayerIntent, SharedBoard } from './coordination'
 import { PlayerError } from './players/music-player'
-import type { MusicPlayer, NowPlaying, PlayerRegistry } from './players/music-player'
+import type { MusicPlayer, NowPlaying, PlayerFailure, PlayerRegistry } from './players/music-player'
 import type { Clock, Notifier, SnapshotSink } from './ports'
 import type { SessionActivity } from './session-activity'
 
@@ -9,6 +9,9 @@ export type SessionIdentity = { sessionId: string; label: string }
 
 /** How long a failed load waits before the player is asked to load again. */
 export const LOAD_RETRY_MS = 30_000
+
+/** Failures that re-running the load every tick would only repeat; other errors retry on the next tick. */
+const WAIT_BEFORE_RETRY: ReadonlySet<PlayerFailure> = new Set(['load-failed', 'missing-dependency'])
 
 /**
  * Keeps the shared player in step with every session's activity: publishes
@@ -87,7 +90,12 @@ export class PlaybackSync {
     const intent = await this.board.readIntent()
     const decision = decidePlayback(intent, await this.board.readOverride(), records, now)
     const isWaitingToRetry = this.loadedKey === null && now < this.retryLoadAt
-    const playing = intent?.isEnabled === true && !isWaitingToRetry ? await this.drive(intent, decision) : null
+    const playing =
+      intent?.isEnabled !== true
+        ? null
+        : isWaitingToRetry
+          ? await this.pauseWhileWaiting(intent, decision)
+          : await this.drive(intent, decision)
     await this.board.prune(records, now)
     await this.showSnapshot(intent, decision, playing, isWaitingToRetry ? this.lastNotice : null)
   }
@@ -105,6 +113,14 @@ export class PlaybackSync {
     return playing
   }
 
+  /** The reload waits, but a hold or a pause must still stop the music. */
+  private async pauseWhileWaiting(intent: PlayerIntent, decision: PlaybackDecision): Promise<null> {
+    if (!decision.shouldPlay) await this.players[intent.player].pause().catch(() => undefined)
+    this.appliedDecision = null
+
+    return null
+  }
+
   private async ensureLoaded(player: MusicPlayer, intent: PlayerIntent): Promise<void> {
     const key = `${intent.player}:${intent.playlistId}`
     if (this.loadedKey === key) return
@@ -118,7 +134,9 @@ export class PlaybackSync {
     if (notice !== this.lastNotice) this.notifier.notify(notice)
     this.lastNotice = notice
     this.loadedKey = null
-    this.retryLoadAt = (await this.clock.now().catch(() => 0)) + LOAD_RETRY_MS
+    if (error instanceof PlayerError && WAIT_BEFORE_RETRY.has(error.failure)) {
+      this.retryLoadAt = (await this.clock.now().catch(() => 0)) + LOAD_RETRY_MS
+    }
     const intent = await this.board.readIntent().catch(() => undefined)
     await this.showSnapshot(intent, { shouldPlay: false, holder: null }, null, notice).catch(() => undefined)
   }
