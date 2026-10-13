@@ -185,7 +185,7 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
   }
   if (cmd === 'sort') {
     if (rest.some(a => longOpt(a, '--compress-program'))) return classify('sort runs a compression program')
-    const target = outputTarget(rest, true)
+    const target = outputTarget(rest, 'kStT')
     if (target !== undefined) return judgeWritePath(target, ctx, 'sort -o')
     return allow('sort prints')
   }
@@ -222,16 +222,34 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
 }
 
 /**
- * The file named by `--output` (in full or by prefix, `=`-joined or separate)
- * or, where the tool has it, by `-o` (attached or separate); undefined when
- * neither is given.
+ * The `-o` value inside a short-option cluster (`-o x`, `-ox`, `-uo x`,
+ * `-9o x`); scanning stops at the first letter in `takesValue`, whose value
+ * swallows the rest of the word (`-to` is sort's separator `o`).
  */
-function outputTarget(rest: readonly string[], shortO: boolean): string | undefined {
+function shortOValue(a: string, next: string | undefined, takesValue: string): string | undefined {
+  if (!/^-[a-zA-Z0-9]/.test(a)) return undefined
+  for (let j = 1; j < a.length; j++) {
+    const letter = a[j] as string
+    if (letter === 'o') return a.slice(j + 1) || (next ?? '')
+    if (takesValue.includes(letter)) return undefined
+  }
+  return undefined
+}
+
+/**
+ * The file named by `--output` (in full or by prefix, `=`-joined or
+ * separate) or, when the tool has a `-o`, by `-o` anywhere in a short-option
+ * cluster; undefined when neither is given. `shortTakesValue` lists the
+ * tool's other short options that take a value, or is undefined when the
+ * tool has no `-o`.
+ */
+function outputTarget(rest: readonly string[], shortTakesValue: string | undefined): string | undefined {
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i] as string
-    if ((shortO && a === '-o') || (longOpt(a, '--output') && !a.includes('='))) return rest[i + 1] ?? ''
-    if (longOpt(a, '--output')) return a.slice(a.indexOf('=') + 1)
-    if (shortO && /^-o./.test(a)) return a.slice(2)
+    if (a === '--') return undefined
+    if (longOpt(a, '--output')) return a.includes('=') ? a.slice(a.indexOf('=') + 1) : (rest[i + 1] ?? '')
+    const short = shortTakesValue === undefined ? undefined : shortOValue(a, rest[i + 1], shortTakesValue)
+    if (short !== undefined) return short
   }
   return undefined
 }
@@ -480,7 +498,7 @@ function judgeGitOptions(sub: string, rest: string[], ctx: Context): Decision | 
   // A URL can carry data out in the request, the same as a curl GET; a configured remote such as `origin` stays allowed.
   const remote = gitRemoteSpec(sub, rest)
   if (remote !== undefined) return classify(`git ${sub} reaches ${remote}, and a URL can carry data out`)
-  const target = outputTarget(rest, sub === 'archive')
+  const target = outputTarget(rest, sub === 'archive' ? '' : undefined)
   if (target === undefined) return undefined
   const written = judgeWritePath(target, ctx, `git ${sub} --output`)
   return written.kind === 'allow' ? undefined : written
