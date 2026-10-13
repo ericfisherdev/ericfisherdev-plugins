@@ -417,11 +417,38 @@ const GIT_PROGRAM_OPTIONS: Readonly<Record<string, ProgramOptions>> = {
 const runsProgram = (options: ProgramOptions, a: string): boolean =>
   options.short?.test(a) === true || options.long.some(name => longOpt(a, name))
 
+const GIT_NETWORK = set('ls-remote fetch pull clone')
+/** A repository named by `scheme://` URL or scp-style `user@host:path`. */
+const GIT_URL = /^[a-z][\w+.-]*:\/\/|^[^\s/:@]+@[^\s/:{]+:/i
+/** A scp-style `host:path` with no user; a one-letter host is a Windows drive. Only the repository operand is read this way, since a refspec looks the same. */
+const GIT_HOST_PATH = /^[^\s/:]{2,}:/
+
+/**
+ * The URL or host:path a network subcommand (or `submodule add`, or
+ * `archive --remote`) reaches, rather than a configured remote name or a
+ * local path; undefined when there is none.
+ */
+function gitRemoteSpec(sub: string, rest: readonly string[]): string | undefined {
+  const isRemote = (spec: string): boolean => GIT_URL.test(spec) || GIT_HOST_PATH.test(spec)
+  if (sub === 'archive') {
+    const r = rest.findIndex(a => a === '--remote' || a.startsWith('--remote='))
+    const spec = r === -1 ? undefined : rest[r]?.startsWith('--remote=') === true ? rest[r]?.slice('--remote='.length) : rest[r + 1]
+    return spec !== undefined && isRemote(spec) ? spec : undefined
+  }
+  const positional = nonFlags(rest)
+  const operands = GIT_NETWORK.has(sub) ? positional : sub === 'submodule' && positional[0] === 'add' ? positional.slice(1) : []
+  const repository = operands[0]
+  return operands.find(a => GIT_URL.test(a)) ?? (repository !== undefined && isRemote(repository) ? repository : undefined)
+}
+
 /** What a subcommand's options add on top of the subcommand itself, if anything. */
 function judgeGitOptions(sub: string, rest: string[], ctx: Context): Decision | undefined {
   const runs = GIT_PROGRAM_OPTIONS[sub]
   if (runs !== undefined && rest.some(a => runsProgram(runs, a))) return classify(`git ${sub} with an option that runs a program or installs hooks`)
   if (sub === 'submodule' && nonFlags(rest)[0] === 'foreach') return classify('git submodule foreach runs a command in every submodule')
+  // A URL can carry data out in the request, the same as a curl GET; a configured remote such as `origin` stays allowed.
+  const remote = gitRemoteSpec(sub, rest)
+  if (remote !== undefined) return classify(`git ${sub} reaches ${remote}, and a URL can carry data out`)
   const target = outputTarget(rest, sub === 'archive')
   if (target === undefined) return undefined
   const written = judgeWritePath(target, ctx, `git ${sub} --output`)
@@ -782,6 +809,9 @@ function judgeCli(cmd: string, rest: string[]): Decision {
         const x = rest.findIndex(a => a === '-X' || a === '--method')
         const method = x === -1 ? 'GET' : (rest[x + 1] ?? 'GET')
         if (!/^GET$/i.test(method) || rest.some(a => /^(-f|-F|--field|--raw-field|--input)$/.test(a))) return classify('a gh api call that writes')
+        if (rest.some(a => a === '--hostname' || a.startsWith('--hostname=')) || pos.some(p => p.includes('://'))) {
+          return classify('a gh api call to a host other than GitHub, whose URL can carry data out')
+        }
         return allow('a read-only gh api call')
       }
       if (/^(search|status|browse-never|label|cache)$/.test(sub)) return sub === 'search' || sub === 'status' || second === 'list' ? allow(`gh ${sub}`) : classify(`gh ${sub} ${second}`)
