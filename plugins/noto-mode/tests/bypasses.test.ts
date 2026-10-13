@@ -78,6 +78,8 @@ test('git subcommand options that run programs or install hooks go to the classi
   expect(sh('git clone --templ=/tmp/hooks --conf core.fsmonitor=x ./r')).toBe('classify')
   expect(sh('git archive -o /tmp/x.tar HEAD')).toBe('classify')
   expect(sh('git archive -o/tmp/x.tar HEAD')).toBe('classify')
+  expect(sh('git archive -9o/tmp/x.tar HEAD')).toBe('classify')
+  expect(sh('git archive -vo /tmp/x.tar HEAD')).toBe('classify')
 })
 
 test('ordinary git subcommand options stay allowed', () => {
@@ -148,6 +150,9 @@ test('sort with a compression program goes to the classifier', () => {
   expect(sh('sort --co=./evil.sh -S 64k big.txt')).toBe('classify')
   expect(sh('sort --out=/tmp/x big.txt')).toBe('classify')
   expect(sh('sort -o/tmp/x big.txt')).toBe('classify')
+  expect(sh('sort -uo/tmp/x big.txt')).toBe('classify')
+  expect(sh('sort -ruo /tmp/x big.txt')).toBe('classify')
+  expect(sh('sort -to big.txt')).toBe('allow')
   expect(sh('sort -o sorted.txt big.txt')).toBe('allow')
   expect(sh('sort -u names.txt')).toBe('allow')
 })
