@@ -92,7 +92,7 @@ function judgeArgv(cmd: string, rest: string[], seg: Segment, flavor: Flavor, ct
   if (R.SHELLS.has(cmd)) return judgeSubshell(cmd, rest, ctx)
   if (PACKAGE_MANAGERS.has(cmd)) return judgePackage(cmd, rest, again)
   if (R.INTERPRETERS.has(cmd)) return judgeInterpreter(cmd, rest, again)
-  if (cmd === 'git') return judgeGit(rest)
+  if (cmd === 'git') return judgeGit(rest, ctx)
   if (R.DELETERS.has(cmd)) return judgeRemove(rest, ctx)
   if (R.FILE_OPS.has(cmd)) return judgePaths(nonFlags(rest), ctx, cmd)
   if (R.HTTP.has(cmd)) return judgeHttp(cmd, rest, ctx)
@@ -221,13 +221,28 @@ const GIT_READ = set('status log diff show blame shortlog ls-files ls-tree ls-re
 const GIT_SAFE = set('add commit fetch pull merge cherry-pick revert init clone submodule am apply format-patch archive mv switch restore reset')
 const GIT_BRANCH_FLAGS = /^(-a|-r|-v|-vv|--list|--show-current|--contains|--no-contains|--merged|--no-merged|--format(=.*)?|--sort(=.*)?|-l|--all|--remotes|--verbose|--points-at|--color|--no-color|--column|--no-column)$/
 
-function judgeGit(args: string[]): Decision {
+/** A repository outside the working directories brings its own config, whose hooks and helpers run commands. */
+function judgeGitRepoPath(spelling: string | undefined, ctx: Context): Decision | undefined {
+  if (spelling === undefined || spelling.includes(SUB) || /\$|%[^%]+%/.test(spelling)) return classify('git on a repository the shell names at run time')
+  const p = normalizePath(spelling, ctx.cwd)
+  if (p === undefined || !isInsideAny(p, ctx.workingDirs)) return classify(`git on a repository outside the working directories (${spelling}), whose config can run commands`, ADD_DIR_FIX)
+  return undefined
+}
+
+function judgeGit(args: string[], ctx: Context): Decision {
   let i = 0
   while (i < args.length) {
     const a = args[i] as string
-    if (a === '-C' || a === '-c') i += 2
-    else if (/^(--git-dir|--work-tree|--namespace|--exec-path)(=.*)?$/.test(a)) i += a.includes('=') ? 1 : 2
-    else if (/^(--no-pager|-P|-p|--paginate|--no-optional-locks|--literal-pathspecs|--no-replace-objects|--bare)$/.test(a)) i++
+    // -c and --config-env set any key, including the ones that run programs (core.pager, core.fsmonitor, alias.*, *.sshCommand).
+    if (a === '-c' || /^-c\S/.test(a) || /^--config-env(=.*)?$/.test(a)) return classify('git with a config override, which can run commands')
+    if (/^--exec-path=/.test(a)) return classify('git with its helper programs taken from another directory')
+    if (a === '-C' || /^(--git-dir|--work-tree)(=.*)?$/.test(a)) {
+      const value = a.includes('=') ? a.slice(a.indexOf('=') + 1) : args[i + 1]
+      const outside = judgeGitRepoPath(value, ctx)
+      if (outside !== undefined) return outside
+      i += a.includes('=') ? 1 : 2
+    } else if (/^--namespace(=.*)?$/.test(a)) i += a.includes('=') ? 1 : 2
+    else if (/^(--no-pager|-P|-p|--paginate|--no-optional-locks|--literal-pathspecs|--no-replace-objects|--bare|--exec-path)$/.test(a)) i++
     else break
   }
   const sub = args[i]
