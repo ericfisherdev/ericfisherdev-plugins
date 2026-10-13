@@ -75,8 +75,13 @@ Group high-risk files by module. A module with multiple fresh-risk files suggest
 Search for commits with "fix", "bug", "patch", "hotfix", "revert" in their messages:
 
 ```bash
-git log --since="{since}" --format="%H %s" --name-only | grep -A1 -iE "fix|bug|patch|hotfix|revert"
+git log --since="{since}" --format="HASH:%H MSG:%s" --name-only | awk '
+  /^HASH:/ { is_fix = (tolower($0) ~ /fix|bug|patch|hotfix|revert/); next }
+  NF && is_fix { print }
+'
 ```
+
+The flag is set from the commit header only, so a file path such as `src/debug.ts` never counts as a fix, and every file line under a fix commit is printed (the same parser as `analyze-defect-prediction.md`).
 
 Files that appear in both the high-freshness-risk list AND bug-fix commits are **confirmed trouble spots**.
 
