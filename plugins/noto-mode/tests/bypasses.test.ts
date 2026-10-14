@@ -138,6 +138,11 @@ test('awk programs that run commands, read their output or write files go to the
   expect(sh(`gawk '@load "rwarray"; BEGIN { writea("x", a) }'`)).toBe('classify')
   expect(sh('gawk --fi prog.awk README.md')).toBe('classify')
   expect(sh('gawk -f --sandbox README.md')).toBe('classify')
+  expect(sh('gawk -W file=x.awk README.md')).toBe('classify')
+  expect(sh('gawk -W exec=x.awk README.md')).toBe('classify')
+  expect(sh('gawk -Wexec=x.awk README.md')).toBe('classify')
+  expect(sh('mawk -W exec x.awk README.md')).toBe('classify')
+  expect(sh(`gawk -W source='BEGIN { system("id") }'`)).toBe('classify')
   expect(sh(`gawk -v --sandbox 'BEGIN { system("id") }'`)).toBe('classify')
   expect(sh(`gawk -- 'BEGIN { system("id") }' --sandbox`)).toBe('classify')
   expect(sh(`gawk 'BEGIN { system("id") }' --sandbox`)).toBe('classify')
@@ -147,6 +152,7 @@ test('awk programs that run commands, read their output or write files go to the
   expect(sh(`awk -F '>' -v 'sep=|' '{print $1 sep}' data.txt`)).toBe('allow')
   expect(sh(`gawk --source='{print $1}' README.md`)).toBe('allow')
   expect(sh(`gawk --sandbox 'BEGIN { system("id") }'`)).toBe('allow')
+  expect(sh(`gawk -W sandbox 'BEGIN { system("id") }'`)).toBe('allow')
 })
 
 test('sort with a compression program goes to the classifier', () => {

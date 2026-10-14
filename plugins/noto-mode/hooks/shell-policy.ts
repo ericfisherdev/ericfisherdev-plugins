@@ -329,11 +329,32 @@ const AWK_PROGRAM_FILE_OPTIONS = ['--file', '--exec', '--include', '--load']
 const AWK_VALUE_OPTION = valueOption('efvFilE', [...AWK_PROGRAM_FILE_OPTIONS, '--source', '--assign', '--field-separator'])
 
 /**
+ * The arguments with gawk's POSIX spelling of a long option, `-W name[=value]`
+ * or `-Wname[=value]` (mawk: `-W exec file`), rewritten as the `--name` it
+ * stands for.
+ */
+function awkLongOptions(rest: readonly string[]): string[] {
+  const args: string[] = []
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a === '--') {
+      args.push(...rest.slice(i))
+      break
+    }
+    if (a === '-W' && i + 1 < rest.length) args.push(`--${rest[++i] as string}`)
+    else if (/^-W./.test(a)) args.push(`--${a.slice(2)}`)
+    else args.push(a)
+  }
+  return args
+}
+
+/**
  * Whether an awk program may run a command, read its output, write a file or
  * pull in another program (`@include`, `@load`, -f, -i, -l). A leading
  * `--sandbox` (gawk) forbids all of them.
  */
-function awkRunsOrWrites(rest: readonly string[]): boolean {
+function awkRunsOrWrites(given: readonly string[]): boolean {
+  const rest = awkLongOptions(given)
   // A program file is classified whatever else is given, --sandbox included.
   if (rest.some(a => (/^-[a-zA-Z]*[fEil]/.test(a) && !/^-[vF]/.test(a)) || AWK_PROGRAM_FILE_OPTIONS.some(n => longOpt(a, n)))) return true
   if (leadingOptions(rest, AWK_VALUE_OPTION).includes('--sandbox')) return false
