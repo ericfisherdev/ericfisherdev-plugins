@@ -14,6 +14,7 @@ export type MpvPaths = {
 
 const EXIT_NOT_RUNNING = 2
 const EXIT_MISSING_DEPENDENCY = 3
+const EXIT_BUSY = 5
 const START_TIMEOUT_MS = 20_000
 
 export const youTubeMusicPlaylistUrl = (playlistId: string): string =>
@@ -41,6 +42,7 @@ export class MpvPlayer implements MusicPlayer {
     if (result.exitCode === EXIT_MISSING_DEPENDENCY) {
       throw new PlayerError('missing-dependency', `${result.stderr.trim()}: install mpv and yt-dlp with your package manager`)
     }
+    if (result.exitCode === EXIT_BUSY) throw new PlayerError('load-failed', 'mpv is still loading the playlist; retrying shortly')
     if (result.exitCode !== 0) throw new PlayerError('load-failed', 'mpv did not start')
   }
 
@@ -65,10 +67,11 @@ export class MpvPlayer implements MusicPlayer {
     await this.runner.run(this.helperArgv('quit'))
   }
 
-  /** Rejects with PlayerError `unavailable` when mpv is not running. */
+  /** Rejects with PlayerError `unavailable` when mpv is not running or still loading. */
   private async control(command: string): Promise<void> {
     const result = await this.runner.run(this.helperArgv(command))
     if (result.exitCode === EXIT_NOT_RUNNING) throw new PlayerError('unavailable', 'mpv is not running')
+    if (result.exitCode === EXIT_BUSY) throw new PlayerError('unavailable', 'mpv is still loading')
   }
 
   private helperArgv(...args: string[]): string[] {
