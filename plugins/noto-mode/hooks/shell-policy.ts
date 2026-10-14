@@ -28,14 +28,25 @@ const longOpt = (a: string, name: string): boolean => {
 }
 
 /**
- * The options before the first operand or `--`. A switch that disarms a check
- * (`--sandbox`) counts only here: after `--`, or after awk's program text,
- * the tool reads it as a file name.
+ * The options before the first operand or `--`, without the values of the
+ * options in `takesValue` (`-f --sandbox` names a file called --sandbox). A
+ * switch that disarms a check (`--sandbox`) counts only here: after `--`, or
+ * after awk's program text, the tool reads it as a file name.
  */
-const leadingOptions = (rest: readonly string[]): readonly string[] => {
-  const end = rest.findIndex(a => a === '--' || !a.startsWith('-') || a === '-')
-  return end === -1 ? rest : rest.slice(0, end)
+function leadingOptions(rest: readonly string[], takesValue: (option: string) => boolean): string[] {
+  const options: string[] = []
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i] as string
+    if (a === '--' || !a.startsWith('-') || a === '-') break
+    options.push(a)
+    if (takesValue(a)) i++
+  }
+  return options
 }
+
+/** Whether `a` is a short option ending in one of `letters`, or one of the `long` options without `=`, so the next word is its value. */
+const valueOption = (letters: string, long: readonly string[]) => (a: string): boolean =>
+  new RegExp(`^-[a-zA-Z0-9]*[${letters}]$`).test(a) || (!a.includes('=') && long.some(name => longOpt(a, name)))
 
 /**
  * Variables that only tune output, locale or logging. Any other assignment
@@ -254,6 +265,8 @@ function outputTarget(rest: readonly string[], shortTakesValue: string | undefin
   return undefined
 }
 
+const SED_VALUE_OPTION = valueOption('efl', ['--expression', '--file', '--line-length'])
+
 /** The scripts sed will run: each -e value, else the first operand. */
 function sedScripts(rest: readonly string[]): string[] {
   const scripts: string[] = []
@@ -276,8 +289,9 @@ function sedScripts(rest: readonly string[]): string[] {
  * which errs toward the classifier. A leading `--sandbox` disables all of them.
  */
 function sedRunsOrWrites(rest: readonly string[]): boolean {
-  if (leadingOptions(rest).includes('--sandbox')) return false
+  // A script file is classified whatever else is given, --sandbox included.
   if (rest.some(a => /^-[a-zA-Z]*f/.test(a) || longOpt(a, '--file'))) return true
+  if (leadingOptions(rest, SED_VALUE_OPTION).includes('--sandbox')) return false
   return sedScripts(rest).some(script => {
     const commands = script
       .replace(/s(.)(?:\\.|(?!\1)[^\\])*\1(?:\\.|(?!\1)[^\\])*\1/g, 's')
@@ -312,6 +326,7 @@ function awkPrograms(rest: readonly string[]): string[] {
 }
 
 const AWK_PROGRAM_FILE_OPTIONS = ['--file', '--exec', '--include', '--load']
+const AWK_VALUE_OPTION = valueOption('efvFilE', [...AWK_PROGRAM_FILE_OPTIONS, '--source', '--assign', '--field-separator'])
 
 /**
  * Whether an awk program may run a command, read its output, write a file or
@@ -319,8 +334,9 @@ const AWK_PROGRAM_FILE_OPTIONS = ['--file', '--exec', '--include', '--load']
  * `--sandbox` (gawk) forbids all of them.
  */
 function awkRunsOrWrites(rest: readonly string[]): boolean {
-  if (leadingOptions(rest).includes('--sandbox')) return false
+  // A program file is classified whatever else is given, --sandbox included.
   if (rest.some(a => (/^-[a-zA-Z]*[fEil]/.test(a) && !/^-[vF]/.test(a)) || AWK_PROGRAM_FILE_OPTIONS.some(n => longOpt(a, n)))) return true
+  if (leadingOptions(rest, AWK_VALUE_OPTION).includes('--sandbox')) return false
   return awkPrograms(rest).some(a => /\||getline|system\s*\(|close\s*\(|>|@(include|load)\b/.test(a))
 }
 
