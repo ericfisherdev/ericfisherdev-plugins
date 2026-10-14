@@ -518,8 +518,9 @@ function gitRemoteSpec(sub: string, rest: readonly string[]): string | undefined
     case 'submodule':
       return positional[0] === 'add' ? positional.slice(1).find(isGitRemote) : undefined
     case 'archive': {
-      const r = rest.findIndex(a => a === '--remote' || a.startsWith('--remote='))
-      const spec = r === -1 ? undefined : rest[r]?.startsWith('--remote=') === true ? rest[r]?.slice('--remote='.length) : rest[r + 1]
+      const r = rest.findIndex(a => longOpt(a, '--remote'))
+      const option = r === -1 ? undefined : (rest[r] as string)
+      const spec = option === undefined ? undefined : option.includes('=') ? option.slice(option.indexOf('=') + 1) : rest[r + 1]
       return spec !== undefined && isGitRemote(spec) ? spec : undefined
     }
     default:
