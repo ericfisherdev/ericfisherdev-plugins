@@ -23,7 +23,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.4.2 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
-| [opticlaude](#opticlaude) | Finds the repetitive tool calls that cost the most tokens, ships scripts that replace them, and audits skills against Anthropic's skill-writing rules | 1.0.0 |
+| [opticlaude](#opticlaude) | Finds the repetitive tool calls that cost the most tokens, ships scripts that replace them, and audits skills against Anthropic's skill-writing rules | 1.0.1 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.19 |
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
@@ -226,9 +226,9 @@ Token hygiene for Claude Code. Measures which repetitive tool calls in your sess
 | `patch.py` | inline `python3 - <<EOF ... s.replace()` edit heredocs | Anchored string-replace edits from a compact hunk spec; all-or-nothing, CRLF-safe, one-line failure with nearest-line hint |
 | `dts_lookup.py` | `sed -n A,Bp` and `grep` over `.d.ts` files | Exact declaration blocks (with JSDoc, real line numbers) by name or `-g REGEX` |
 | `src_outline.py` | `for f in ...; cat -n` loops, orientation reads | Symbols with line numbers for TS/JS/Python/Go/Rust/PHP/JVM; `--dump` strips blank lines |
-| `pr.py` | `gh pr view --json`, `gh run list`, review-thread GraphQL, `gh api .../pulls/...` | One line per PR (state, review, merge state, CI counts, unresolved threads); `checks`, `threads`, `resolve`, `reply` |
+| `pr.py` | `gh pr view --json`, `gh run list`, review-thread GraphQL, `gh api .../pulls/N/comments` | One line per PR (state, review, merge state, CI counts, unresolved threads); `checks`, `threads`, `resolve`, `reply` |
 
-**Deny rules written by setup:** `Bash(sed -n *.d.ts*)`, `Bash(grep *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`, `Bash(gh api repos/*/pulls/*)`. `--strict` adds `Bash(gh pr view *)` and `Bash(gh api graphql *)`, which break skills that call those directly (github-board-workflow, pr-review-bot, review-watch, code-review).
+**Deny rules written by setup:** `Bash(sed -n *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`. `--strict` adds `Bash(gh pr view *)`, `Bash(gh api graphql *)` and `Bash(gh api repos/*/pulls/*)`, which break skills that call those directly (github-board-workflow, pr-review-bot, review-watch, code-review). Setup records the rules it added in `~/.claude/scripts/opticlaude/installed-rules.json`; `--uninstall` removes only those. Settings and CLAUDE.md are written through a temp file and rename.
 
 **Usage Examples:**
 

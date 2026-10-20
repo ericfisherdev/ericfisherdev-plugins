@@ -1,6 +1,6 @@
 {
   "name": "opticlaude",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Finds the repetitive tool calls in your session history that cost the most tokens, ships scripts that replace the common ones, and audits skills against Anthropic's skill-writing rules",
   "author": {
     "name": "ericfisherdev"
