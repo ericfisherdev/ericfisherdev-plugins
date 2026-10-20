@@ -17,13 +17,18 @@ the old text. Content lines that would collide with the markers are escaped
 with a leading backslash: `\\@@ ...` or `\\===`.
 
 Every hunk is validated against the in-memory file state before anything is
-written, so a run is all-or-nothing. Hunks on the same file apply in order.
-Exit status 1 on any failure, with one `FAIL` line per bad hunk.
+written, and files are staged to temp siblings and renamed into place only once
+every one of them is staged, so a run is all-or-nothing. Hunks on the same file
+apply in order; paths are resolved, so `f.txt`, `./f.txt` and `/abs/f.txt` share
+one state. Exit status 1 on any failure, with one `FAIL` line per bad hunk.
 """
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field
 
 HEADER = "@@"
@@ -140,33 +145,67 @@ def main() -> int:
         print("FAIL spec: no hunks", file=sys.stderr)
         return 1
 
-    contents: dict[str, str] = {}
-    reports: list[str] = []
-    failures: list[str] = []
-    for hunk in hunks:
-        if hunk.path not in contents:
-            try:
-                with open(hunk.path, encoding="utf-8", newline="") as fh:
-                    contents[hunk.path] = fh.read()
-            except OSError as err:
-                failures.append(f"FAIL hunk {hunk.index} {hunk.path}: {err.strerror}")
-                continue
-        try:
-            contents[hunk.path], report = apply(hunk, contents[hunk.path])
-            reports.append(report)
-        except SpecError as err:
-            failures.append(f"FAIL hunk {hunk.index} {hunk.path}: {err}")
-
+    contents, reports, failures = apply_all(hunks)
     if failures:
         print("\n".join(failures), file=sys.stderr)
         print("nothing written", file=sys.stderr)
         return 1
     if not args.dry_run:
-        for path, text in contents.items():
-            with open(path, "w", encoding="utf-8", newline="") as fh:
-                fh.write(text)
+        try:
+            write_all(contents)
+        except OSError as err:
+            print(f"FAIL write {err.filename}: {err.strerror}", file=sys.stderr)
+            print("nothing written", file=sys.stderr)
+            return 1
     print("\n".join(reports) + (" (dry run)" if args.dry_run else ""))
     return 0
+
+
+def apply_all(hunks: list[Hunk]) -> tuple[dict[str, str], list[str], list[str]]:
+    """Apply every hunk in memory. Returns (resolved path -> new text, ok reports, FAIL lines)."""
+    contents: dict[str, str] = {}
+    reports: list[str] = []
+    failures: list[str] = []
+    for hunk in hunks:
+        key = os.path.realpath(hunk.path)
+        if key not in contents:
+            try:
+                with open(hunk.path, encoding="utf-8", newline="") as fh:
+                    contents[key] = fh.read()
+            except OSError as err:
+                failures.append(f"FAIL hunk {hunk.index} {hunk.path}: {err.strerror}")
+                continue
+        try:
+            contents[key], report = apply(hunk, contents[key])
+            reports.append(report)
+        except SpecError as err:
+            failures.append(f"FAIL hunk {hunk.index} {hunk.path}: {err}")
+    return contents, reports, failures
+
+
+def write_all(contents: dict[str, str]) -> None:
+    """Stage every file to a temp sibling, then rename all of them into place.
+
+    Raises OSError (with `filename` set) before any target is touched if a stage fails,
+    so a read-only or full disk leaves every file unchanged.
+    """
+    staged: list[tuple[str, str]] = []
+    try:
+        for path, text in contents.items():
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", prefix=".patch-")
+            staged.append((tmp, path))
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+                fh.write(text)
+            shutil.copymode(path, tmp)
+            if not os.access(path, os.W_OK):
+                raise PermissionError(13, "Permission denied", path)
+    except OSError:
+        for tmp, _ in staged:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        raise
+    for tmp, path in staged:
+        os.replace(tmp, path)
 
 
 if __name__ == "__main__":

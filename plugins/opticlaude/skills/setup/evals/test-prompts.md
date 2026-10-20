@@ -14,7 +14,7 @@ Baseline without skill: scripts copied by hand to an ad hoc path, deny rules wri
 
 > Set up opticlaude and block gh pr view too.
 
-Expected with skill: the warning that `gh pr view` and `gh api graphql` deny rules break the named skills, then `--strict` is passed only after the user confirms.
+Expected with skill: the warning that the `gh pr view`, `gh api graphql` and `gh api repos/*/pulls/*` deny rules break the named skills, then `--strict` is passed only after the user confirms.
 
 Baseline without skill: the rules are added without the warning.
 
@@ -22,6 +22,6 @@ Baseline without skill: the rules are added without the warning.
 
 > Remove everything opticlaude installed.
 
-Expected with skill: `--uninstall` removes the scripts directory, the plugin's deny rules and the CLAUDE.md block, leaving other settings and CLAUDE.md content untouched.
+Expected with skill: `--uninstall` removes the scripts directory, the deny rules recorded in `installed-rules.json` and the CLAUDE.md block, leaving other settings, hand-written deny rules and CLAUDE.md content untouched.
 
 Baseline without skill: manual edits that miss one of the three locations.

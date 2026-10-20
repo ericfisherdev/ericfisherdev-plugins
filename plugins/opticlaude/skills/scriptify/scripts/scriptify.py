@@ -8,8 +8,9 @@
     scriptify.py --top 15 --examples 3
 
 Reads `~/.claude/projects/**/*.jsonl` (or `$CLAUDE_CONFIG_DIR/projects`), pairs every
-tool_use with its tool_result, drops exact duplicates (a project directory that was
-renamed keeps a copy of its transcripts), and buckets Bash commands by task shape.
+tool_use with its tool_result, drops copies of the same tool_use id (a project directory
+that was renamed keeps a copy of its transcripts; a command run three times in one
+session counts three times), and buckets Bash commands by task shape.
 Token counts are characters / 4 for the command text (input) and the result (output).
 
 Savings are estimates: measured tokens multiplied by a per-category factor listed in
@@ -55,8 +56,10 @@ CATEGORIES: list[Category] = [
     Category("multi_file_dump", "Whole-directory cat loops",
              re.compile(r"\bfor \w+ in [^;]*;\s*do\s+(?:echo[^;]*;\s*)?cat(?: -n)?\s"), 0.75, "an outline replaces a full dump for orientation", "src_outline.py"),
     Category("pr_status_review", "PR status, checks, review threads",
-             re.compile(r"gh pr (?:view|checks|list|merge|create|ready)|gh run (?:list|view)|gh api (?:graphql|repos/\S+/pulls/)|pulls/\d+/(?:comments|reviews)"),
+             re.compile(r"gh pr (?:view|checks|list)|gh run list|gh api (?:graphql|repos/\S+/pulls/)|pulls/\d+/(?:comments|reviews)"),
              0.6, "long --json/--jq selectors in, verbose JSON out", "pr.py"),
+    Category("pr_lifecycle", "PR create, merge, ready, run logs",
+             re.compile(r"gh pr (?:create|merge|ready)|gh run view"), 0.3, "fixed flag sets per repo; a wrapper removes retyping"),
     Category("gh_repo_research", "GitHub repository research (readme, releases, contents)",
              re.compile(r"gh api (?:repos/\S+/(?:readme|releases|contents|license)|\"?search/code)|api\.github\.com/repos"),
              0.6, "base64 readme dumps and release JSON compress to a few lines"),
@@ -96,6 +99,7 @@ class Call:
     tool_input: dict
     result_chars: int
     timestamp: float
+    use_id: str = ""
 
 
 @dataclass
@@ -193,7 +197,8 @@ def load_calls(root: str, cutoff: float, project_filter: str | None) -> tuple[li
                     if not isinstance(block, dict):
                         continue
                     if block.get("type") == "tool_use":
-                        call = Call(project, session, block.get("name", "?"), block.get("input") or {}, 0, stamp)
+                        call = Call(project, session, block.get("name", "?"), block.get("input") or {}, 0, stamp,
+                                    block.get("id", ""))
                         pending[block.get("id", "")] = (call, None)
                     elif block.get("type") == "tool_result" and block.get("tool_use_id") in pending:
                         call, _ = pending.pop(block["tool_use_id"])
@@ -204,10 +209,16 @@ def load_calls(root: str, cutoff: float, project_filter: str | None) -> tuple[li
 
 
 def dedupe(calls: list[Call]) -> list[Call]:
+    """Drop copies of a transcript. The tool_use id is unique per call and survives a copy,
+    so it separates a copied transcript from the same command run again in one session."""
     seen: set[tuple] = set()
     unique: list[Call] = []
     for call in calls:
-        key = (call.session, call.tool, json.dumps(call.tool_input, sort_keys=True)[:500], call.result_chars)
+        if call.use_id:
+            key = (call.session, call.use_id)
+        else:
+            key = (call.session, call.tool, json.dumps(call.tool_input, sort_keys=True)[:500],
+                   call.result_chars, call.timestamp)
         if key in seen:
             continue
         seen.add(key)

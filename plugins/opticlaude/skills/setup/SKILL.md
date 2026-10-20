@@ -26,8 +26,8 @@ Copy the scripts, add the deny rules, point CLAUDE.md at them. Dry run first.
 
 ```
 /opticlaude:setup              # install
-/opticlaude:setup --strict     # also deny `gh pr view` and `gh api graphql`
-/opticlaude:setup --uninstall  # remove scripts, deny rules and the CLAUDE.md section
+/opticlaude:setup --strict     # also deny `gh pr view`, `gh api graphql`, `gh api repos/*/pulls/*`
+/opticlaude:setup --uninstall  # remove scripts, the deny rules setup added, and the CLAUDE.md section
 ```
 
 ## Workflow
@@ -38,14 +38,15 @@ Copy the scripts, add the deny rules, point CLAUDE.md at them. Dry run first.
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.py --dry-run
    ```
 
-2. Run it for real with the same flags the user asked for. Pass `--strict` only when the user asked for it; say first that the two strict rules break skills that call `gh pr view` or `gh api graphql` directly (github-board-workflow, pr-review-bot, review-watch, code-review).
+2. Run it for real with the same flags the user asked for. Pass `--strict` only when the user asked for it; say first that the three strict rules break skills that call `gh pr view`, `gh api graphql` or `gh api repos/*/pulls/*` directly (github-board-workflow, pr-review-bot, review-watch, code-review). pr.py cannot list or submit PR reviews, so pr-review-bot has no replacement under `--strict`.
 
 3. Report what changed: scripts directory, deny rules added, CLAUDE.md section written. Remind the user to re-run after a plugin update so the copies pick up new script versions.
 
 ## What gets written
 
 - `~/.claude/scripts/opticlaude/*.py`: copies of the plugin's `scripts/` directory, executable.
-- `permissions.deny` in `~/.claude/settings.json`: `Bash(sed -n *.d.ts*)`, `Bash(grep *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`, `Bash(gh api repos/*/pulls/*)`. Existing entries are kept.
+- `permissions.deny` in `~/.claude/settings.json`: `Bash(sed -n *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`. `--strict` adds `Bash(gh pr view *)`, `Bash(gh api graphql *)`, `Bash(gh api repos/*/pulls/*)`. Existing entries are kept. The overmatching `Bash(grep *.d.ts*)` rule from version 1.0.0 is dropped on install (it also denied `grep --exclude=*.d.ts`, and no glob can tell the two apart).
+- `~/.claude/scripts/opticlaude/installed-rules.json`: the deny rules setup itself added. `--uninstall` removes only those, so rules the user wrote by hand survive; without the manifest it lists matching rules and leaves them in place.
 - `~/.claude/CLAUDE.md`: a block between `<!-- opticlaude:begin -->` and `<!-- opticlaude:end -->` naming each script and the command it replaces. Re-running replaces the block in place.
 
 ## Reference files
