@@ -23,7 +23,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.4.2 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
-| [skill-tools](#skill-tools) | Tools for auditing and maintaining Claude Code skills against Anthropic's skill-writing rules | 1.0.0 |
+| [opticlaude](#opticlaude) | Finds the repetitive tool calls that cost the most tokens, ships scripts that replace them, and audits skills against Anthropic's skill-writing rules | 1.0.0 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.19 |
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
@@ -207,43 +207,52 @@ GitHub integration tools for PR lifecycle management, review automation, and rep
 
 ---
 
-### skill-tools
+### opticlaude
 
-Tools for auditing and maintaining Claude Code skills against the 13 skill-writing rules from Anthropic's skill guide (progressive disclosure, contents lists, degrees of freedom, model fit, concise third-person writing, checklists, feedback loops, templates/examples/forks, shareability, hooks for must-hold rules, evals first, important instructions at the top, no reasoning extraction).
+Token hygiene for Claude Code. Measures which repetitive tool calls in your session transcripts cost the most, ships scripts that replace the common ones, enforces them with deny rules, and audits skills against the 13 skill-writing rules from Anthropic's skill guide.
 
 **Skills:**
 
 | Skill | Description |
 |-------|-------------|
+| `/scriptify` | Scan session history for a period (`--period 1w`, `2d`, `12h`; default `2w`), rank repetitive task shapes by estimated token savings, propose scripts and conflict-checked deny rules |
+| `/opticlaude:setup` | Copy the helper scripts to `~/.claude/scripts/opticlaude/`, add the deny rules to `~/.claude/settings.json`, write a pointer block into the global CLAUDE.md (`--strict`, `--uninstall`, `--dry-run`) |
 | `/audit-skills` | Audit personal, project, and plugin skills rule by rule; report with file:line evidence and a numbered fix list; apply only approved fixes |
 
-**Features:**
-- Discovers skills in `~/.claude/skills`, `.claude/skills`, and installed plugin caches
-- Bundled checker script decides the mechanical rules; Claude reads each skill for the judgment rules
-- Report-first: nothing is edited until fix numbers are approved
-- Re-audits every changed skill after fixes are applied
+**Helper scripts** (`plugins/opticlaude/scripts/`, installed by `/opticlaude:setup`, all `--help`):
+
+| Script | Replaces | What it does |
+|--------|----------|--------------|
+| `patch.py` | inline `python3 - <<EOF ... s.replace()` edit heredocs | Anchored string-replace edits from a compact hunk spec; all-or-nothing, CRLF-safe, one-line failure with nearest-line hint |
+| `dts_lookup.py` | `sed -n A,Bp` and `grep` over `.d.ts` files | Exact declaration blocks (with JSDoc, real line numbers) by name or `-g REGEX` |
+| `src_outline.py` | `for f in ...; cat -n` loops, orientation reads | Symbols with line numbers for TS/JS/Python/Go/Rust/PHP/JVM; `--dump` strips blank lines |
+| `pr.py` | `gh pr view --json`, `gh run list`, review-thread GraphQL, `gh api .../pulls/...` | One line per PR (state, review, merge state, CI counts, unresolved threads); `checks`, `threads`, `resolve`, `reply` |
+
+**Deny rules written by setup:** `Bash(sed -n *.d.ts*)`, `Bash(grep *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`, `Bash(gh api repos/*/pulls/*)`. `--strict` adds `Bash(gh pr view *)` and `Bash(gh api graphql *)`, which break skills that call those directly (github-board-workflow, pr-review-bot, review-watch, code-review).
 
 **Usage Examples:**
 
 ```bash
+# Rank scriptable task shapes from the last week
+/scriptify --period 1w
+
+# Only one project, last two days
+/scriptify --period 2d --project obsidiboard
+
+# Install scripts, deny rules and CLAUDE.md pointers
+/opticlaude:setup
+
 # Audit every installed skill
 /audit-skills
 
-# Audit only personal skills
-/audit-skills --personal
-
-# Audit two named skills inside installed plugins
-/audit-skills --plugins --only review-watch,create-issue
-
-# Audit a specific skill folder
-/audit-skills ~/.claude/skills/my-skill
-
-# Run the checker directly
-python3 plugins/skill-tools/skills/audit-skills/scripts/audit_skills.py --all --summary
+# Run the analyzers directly
+python3 plugins/opticlaude/skills/scriptify/scripts/scriptify.py --period 2w --format json
+python3 plugins/opticlaude/skills/audit-skills/scripts/audit_skills.py --all --summary
 ```
 
 **Requirements:**
-- Python 3.8+ (standard library only)
+- Python 3.10+ (standard library only)
+- GitHub CLI (`gh`) authenticated, for `pr.py`
 
 ---
 
