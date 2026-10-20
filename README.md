@@ -23,7 +23,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [jira-tools](#jira-tools) | Jira integration tools for issues, sprints, and agile workflows | 1.4.2 |
 | [confluence-tools](#confluence-tools) | Confluence integration tools for token-efficient page and folder management with caching | 1.2.1 |
 | [github-tools](#github-tools) | GitHub integration tools for PR lifecycle management, review automation, and repository workflows | 1.1.1 |
-| [opticlaude](#opticlaude) | Finds the repetitive tool calls that cost the most tokens, ships scripts that replace them, and audits skills against Anthropic's skill-writing rules | 1.0.1 |
+| [opticlaude](#opticlaude) | Finds the repetitive tool calls that cost the most tokens, ships scripts that replace them, and audits skills against Anthropic's skill-writing rules | 1.0.2 |
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.19 |
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |

@@ -106,7 +106,12 @@ def load_settings(path: str) -> dict:
 
 
 def write_atomic(path: str, text: str) -> None:
-    """Write text to a temp file beside path and rename it over, so readers never see a torn file."""
+    """Write text to a temp file beside path and rename it over, so readers never see a torn file.
+
+    The path is resolved first so a symlinked config (stow, chezmoi, `ln -s` into a
+    dotfiles repo) keeps its link and the target file receives the change.
+    """
+    path = os.path.realpath(path)
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=directory, prefix=".opticlaude-")
