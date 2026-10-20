@@ -30,7 +30,7 @@
       "name": "opticlaude",
       "source": "./plugins/opticlaude",
       "description": "Finds the repetitive tool calls in your session history that cost the most tokens, ships scripts that replace the common ones, and audits skills against Anthropic's skill-writing rules",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "keywords": ["tokens", "optimization", "session-history", "scripts", "automation", "skills", "audit", "lint", "best-practices", "permissions", "quality-of-life"]
     },
     {
