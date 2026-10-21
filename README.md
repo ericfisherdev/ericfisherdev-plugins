@@ -27,6 +27,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [plane-tools](#plane-tools) | Work a Plane project backlog task by task through plan, implement, PR, merge, and Done | 1.0.1 |
 | [noto-mode](#noto-mode) | Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you | 1.0.19 |
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
+| [minions](#minions) | Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it | 0.1.0 |
 | [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.4 |
 
 ---
@@ -329,6 +330,32 @@ A mod (function-hooks plugin) that plays a YouTube Music or Spotify playlist onc
 - Claude Code 2.1.296 or later (function hooks), Linux, Python 3
 - YouTube Music: `mpv` and `yt-dlp`
 - Spotify: Premium, a Spotify developer app's client id, and an open Spotify client
+
+---
+
+### minions
+
+A mod (function-hooks plugin) that turns the main conversation into a dispatcher on Haiku, one that never does the work itself. Every request of the main loop runs on the dispatcher model whatever `/model` says; every tool but the orchestration tools (Agent, AskUserQuestion, SendMessage and the like) is refused to it with a message naming the minion to spawn instead; and six minion types are registered, each pinned to a model tier: `minions:scout` (Haiku) for simple reads and scans, `minions:mapper` (Sonnet) for basic code mapping, `minions:planner` (Opus) for plans and dependency analysis, `minions:coder` (Sonnet) to implement a written plan, `minions:analyst` (Opus at xhigh) for intense code analysis, `minions:researcher` (Fable) for deep research and work larger than one sitting. Coding work is always a planner then a coder. Work the table does not cover is put to you with a question. Any other agent spawned from the main conversation must name its model.
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/minions` | The routing table, the dispatcher model and the guard state |
+
+**Features:**
+- Status line entry (`minions: haiku`)
+- Options in `/config` › minions: `orchestratorModel` (default `haiku`), `guard` on/off
+- Routing table checked against Anthropic's model guidance before it was written (see the plugin README)
+
+**Install:**
+
+```bash
+/plugin install minions --marketplace ericfisherdev/ericfisherdev-plugins
+```
+
+**Requirements:**
+- Claude Code 2.1.296 or later (function hooks)
 
 ---
 
