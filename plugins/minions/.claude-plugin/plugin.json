@@ -24,13 +24,13 @@
     "orchestratorModel": {
       "type": "string",
       "title": "Dispatcher model",
-      "description": "The model the main conversation runs on: an alias (haiku, sonnet, opus) or a full model id.",
+      "description": "The model the main conversation runs on: an alias (haiku, sonnet, opus, fable) or a full model id.",
       "default": "haiku"
     },
     "guard": {
       "type": "boolean",
       "title": "Refuse work in the main conversation",
-      "description": "Deny file, shell, search and web tools to the main conversation so every task goes to a minion. Off: the routing rules are advice only.",
+      "description": "Deny the main conversation every tool except the orchestration tools (Agent, AskUserQuestion, SendMessage, ...) so every task goes to a minion. Off: the routing rules are advice only.",
       "default": true
     }
   }

@@ -1,6 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { isWorkTool, spawnDenial, toolCallDenial } from '../hooks/guard'
 import { MINIONS, minionType } from '../hooks/roster'
+import { MODEL_IDS, resolveModelId } from '../hooks/models'
 import { dispatcherSection, statusText } from '../hooks/register'
 
 // ---------- the roster ----------
@@ -19,26 +20,56 @@ test('every minion is pinned to a model tier and named under the plugin', () => 
   for (const minion of MINIONS) expect(minion.prompt.length).toBeGreaterThan(50)
 })
 
-test('only the coder may write; every other minion is read-only', () => {
+const FILE_WRITING_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+
+test('only the coder holds file-writing tools; the others are read-only by instruction', () => {
   for (const minion of MINIONS) {
     if (minion.name === 'coder') {
       expect(minion.tools).toBeUndefined()
       expect(minion.disallowedTools).toEqual(['Agent'])
     } else {
       expect(minion.tools).toBeDefined()
-      expect(minion.tools).not.toContain('Edit')
-      expect(minion.tools).not.toContain('Write')
+      for (const tool of FILE_WRITING_TOOLS) expect(minion.tools).not.toContain(tool)
+      expect(minion.prompt).toMatch(/You are read-only/)
     }
   }
 })
 
+test('the scout has no shell; the minions that read git history and run tests keep one', () => {
+  const byName = Object.fromEntries(MINIONS.map(m => [m.name, m]))
+  expect(byName['scout']?.tools).not.toContain('Bash')
+  for (const name of ['mapper', 'planner', 'analyst', 'researcher']) expect(byName[name]?.tools).toContain('Bash')
+})
+
+test('the planner reaches context7 whether the user configured the server or the plugin ships it', () => {
+  const planner = MINIONS.find(m => m.name === 'planner')
+  expect(planner?.tools).toContain('mcp__context7__query-docs')
+  expect(planner?.tools).toContain('mcp__plugin_context7_context7__query-docs')
+})
+
+// ---------- the model aliases ----------
+
+test('an alias resolves to its full id and anything else passes through', () => {
+  for (const [alias, id] of Object.entries(MODEL_IDS)) expect(resolveModelId(alias)).toBe(id)
+  expect(resolveModelId('haiku')).toBe('claude-haiku-5-5')
+  expect(resolveModelId('fable')).toBe('claude-fable-5-1')
+  expect(resolveModelId('claude-opus-5-5')).toBe('claude-opus-5-5')
+  expect(resolveModelId('constructor')).toBe('constructor')
+  expect(resolveModelId('toString')).toBe('toString')
+})
+
 // ---------- the tool guard ----------
 
-test('work tools are the file, shell, search, web and MCP tools', () => {
-  for (const tool of ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'mcp__context7__query-docs']) {
-    expect(isWorkTool(tool)).toBe(true)
-  }
-  for (const tool of ['Agent', 'AskUserQuestion', 'SendMessage', 'ListAgents', 'TaskStop', 'ToolSearch', 'Skill']) {
+test('every tool but the orchestration tools is work, unknown tools included', () => {
+  const work = [
+    'Read', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit',
+    'Bash', 'PowerShell', 'Monitor', 'REPL', 'JavaScript', 'AppifactRepl', 'Workflow',
+    'Grep', 'Glob', 'WebFetch', 'WebSearch', 'LSP', 'Artifact',
+    'mcp__context7__query-docs', 'mcp__plugin_context7_context7__query-docs',
+    'SomeToolALaterEngineAdds',
+  ]
+  for (const tool of work) expect(isWorkTool(tool)).toBe(true)
+  for (const tool of ['Agent', 'AskUserQuestion', 'SendMessage', 'ListAgents', 'TaskStop', 'ToolSearch', 'Skill', 'TodoWrite', 'ExitPlanMode']) {
     expect(isWorkTool(tool)).toBe(false)
   }
 })
@@ -122,6 +153,29 @@ test('session.start registers every minion and the command, then marks the statu
   expect(status).toBe('minions: haiku')
 })
 
+test('the main conversation steps on the dispatcher model; a minion keeps its own', async ($, on) => {
+  const sent: { model: string; agentId?: string }[] = []
+  // Stands for the engine beneath: records the request it would send.
+  on('turn.step', async function* (_, e) {
+    sent.push({ model: e.model, agentId: e.agentId })
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: null }
+  })
+
+  const step = async (input: { model: string; agentId?: string }) => {
+    const stream = $.turn.step({ turnId: 'turn-1', index: 0, messageCount: 1, ...input })
+    for await (const _chunk of stream) { /* drain */ }
+    return stream.result
+  }
+
+  await step({ model: 'claude-fable-5-1' })
+  await step({ model: 'claude-sonnet-5-5', agentId: 'agent-1' })
+
+  expect(sent).toEqual([
+    { model: 'claude-haiku-5-5', agentId: undefined },
+    { model: 'claude-sonnet-5-5', agentId: 'agent-1' },
+  ])
+})
+
 test("the engine's own Bash call in the main conversation is refused and nothing runs beneath", async ($, on) => {
   let ran = 0
   on('tool.call', () => {
@@ -132,4 +186,11 @@ test("the engine's own Bash call in the main conversation is refused and nothing
   const denied = await $.tool.call({ tool: 'Bash', command: 'ls' })
   expect(denied.deny).toMatch(/never does the work itself/)
   expect(ran).toBe(0)
+})
+
+test("a shell tool the denylist never named is refused too", async ($, on) => {
+  on('tool.call', () => ({ result: {} }))
+
+  const denied = await $.tool.call({ tool: 'Monitor', command: 'ls' } as never)
+  expect(denied.deny).toMatch(/never does the work itself/)
 })

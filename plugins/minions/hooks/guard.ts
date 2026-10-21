@@ -4,25 +4,34 @@
 
 import { PLUGIN } from './roster'
 
-/** The tools that do work: file, shell, search and web access. */
-const WORK_TOOLS: ReadonlySet<string> = new Set([
-  'Read',
-  'Edit',
-  'Write',
-  'MultiEdit',
-  'NotebookEdit',
-  'Bash',
-  'Grep',
-  'Glob',
-  'WebFetch',
-  'WebSearch',
-  'LSP',
+/**
+ * The tools the dispatcher keeps: spawning and steering minions, asking the
+ * user, tracking tasks, loading skills and tool schemas, and leaving plan
+ * mode. An allowlist, so a tool this list does not name (every file, shell,
+ * code-execution, search, web and MCP tool, and any tool a later engine adds)
+ * is refused rather than slipping through.
+ */
+const ORCHESTRATION_TOOLS: ReadonlySet<string> = new Set([
+  'Agent',
+  'AskUserQuestion',
+  'SendMessage',
+  'ListAgents',
+  'TaskStop',
+  'FetchInboxMessage',
+  'ToolSearch',
+  'Skill',
+  'TodoWrite',
+  'TaskCreate',
+  'TaskGet',
+  'TaskUpdate',
+  'GetTask',
+  'EnterPlanMode',
+  'ExitPlanMode',
+  'SendFeedback',
 ])
 
-const isMcpTool = (tool: string): boolean => tool.startsWith('mcp__')
-
 /** True when `tool` does work the dispatcher must hand to a minion. */
-export const isWorkTool = (tool: string): boolean => WORK_TOOLS.has(tool) || isMcpTool(tool)
+export const isWorkTool = (tool: string): boolean => !ORCHESTRATION_TOOLS.has(tool)
 
 /** The facts of a tool call the guard reads. */
 export type ToolCallFacts = {

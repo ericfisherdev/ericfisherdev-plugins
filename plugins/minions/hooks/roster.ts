@@ -14,17 +14,24 @@ export type Minion = {
   omitClaudeMd?: true
 }
 
-const READ_ONLY_TOOLS = [
-  'Read',
-  'Grep',
-  'Glob',
-  'Bash',
-  'WebFetch',
-  'WebSearch',
-  'ToolSearch',
+// The context7 tools under both names the engine gives them: a server the
+// user configured, and the one the context7 plugin ships.
+const CONTEXT7_TOOLS = [
   'mcp__context7__resolve-library-id',
   'mcp__context7__query-docs',
+  'mcp__plugin_context7_context7__resolve-library-id',
+  'mcp__plugin_context7_context7__query-docs',
 ] as const
+
+/** The tools that only read: files, search, the web and documentation. */
+const READ_TOOLS = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'ToolSearch', ...CONTEXT7_TOOLS] as const
+
+/**
+ * The read tools plus a shell for read-only commands (git log, a test run).
+ * A shell can write, so a minion holding it is read-only by its instructions,
+ * not by its tool list.
+ */
+const READ_AND_SHELL_TOOLS = [...READ_TOOLS, 'Bash'] as const
 
 const REPORT_FORMAT = `Report with the answer first, then the evidence as file:line references. Say plainly what you could not find or verify. Do not pad.`
 
@@ -39,7 +46,7 @@ export const MINIONS: readonly Minion[] = [
       'Simple fetch, read and scan tasks with checkable answers: find where X is defined, list callers of Y, read a file or URL and report facts, grep a pattern. Not for anything that needs judgment.',
     prompt: `You are a scout: a fast, narrowly scoped reader. ${NO_WRITES}
 Find exactly the facts the task names, in full: do not skip a search, stop early or guess. Where the task names several facts, find each one. ${REPORT_FORMAT} Never suggest fixes.`,
-    tools: READ_ONLY_TOOLS,
+    tools: READ_TOOLS,
     omitClaudeMd: true,
   },
   {
@@ -50,7 +57,7 @@ Find exactly the facts the task names, in full: do not skip a search, stop early
       'Basic, well-scoped code mapping and analysis: how a module fits together, what a function does end to end, which files a change touches, a scan that needs some judgment.',
     prompt: `You are a mapper: you read code and explain how it fits together. ${NO_WRITES}
 Follow the code, not the names: read what a function actually does before describing it. ${REPORT_FORMAT}`,
-    tools: READ_ONLY_TOOLS,
+    tools: READ_AND_SHELL_TOOLS,
   },
   {
     name: 'planner',
@@ -60,7 +67,7 @@ Follow the code, not the names: read what a function actually does before descri
       'Planning, dependency analysis and organization work: an implementation plan for a coding task, the order to do things in, what depends on what, how to structure or split work.',
     prompt: `You are a planner. ${NO_WRITES}
 Read the code the task touches, check library usage against current documentation (context7) rather than memory, and write a plan a coder can follow without asking questions: the files to change, each change in order, the tests to add or run, and the acceptance criteria. Name the trade-offs you decided and why. Keep the plan as short as it can be while complete.`,
-    tools: READ_ONLY_TOOLS,
+    tools: READ_AND_SHELL_TOOLS,
   },
   {
     name: 'coder',
@@ -80,7 +87,7 @@ Before reporting a change as done, verify it with a check that exercises it: run
       'Intense code analysis within one sitting: root-cause investigations, tricky bugs, architecture questions, security-oriented review. First stop before a researcher.',
     prompt: `You are an analyst: you dig into code until you can explain it with evidence. ${NO_WRITES}
 Form hypotheses, test each one against the code and its behaviour (run read-only commands, tests and scripts where they help), and discard the ones that fail. Separate what you verified from what you infer. ${REPORT_FORMAT}`,
-    tools: READ_ONLY_TOOLS,
+    tools: READ_AND_SHELL_TOOLS,
   },
   {
     name: 'researcher',
@@ -90,7 +97,7 @@ Form hypotheses, test each one against the code and its behaviour (run read-only
       'Deep research and long-horizon analysis: multistep web research, whole-repository analysis that needs the full context window, work larger than one sitting, or an analyst that fell short. Slow and costly: use last.',
     prompt: `You are a researcher: the most capable, most expensive reader on the team, sent in when the question is wide, deep or long. ${NO_WRITES}
 Work the question end to end across every source it needs, keep track of what each source showed, and reconcile disagreements between them. ${REPORT_FORMAT}`,
-    tools: READ_ONLY_TOOLS,
+    tools: READ_AND_SHELL_TOOLS,
   },
 ]
 
