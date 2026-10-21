@@ -1,0 +1,37 @@
+{
+  "name": "minions",
+  "version": "0.1.0",
+  "description": "Runs the main conversation on Haiku as a dispatcher that never does work itself, and routes every task to a minion on the model tier that fits it: Haiku scouts, Sonnet mappers and coders, Opus planners and analysts, Fable researchers.",
+  "author": {
+    "name": "Eric Fisher"
+  },
+  "license": "MIT",
+  "keywords": [
+    "subagents",
+    "routing",
+    "model-selection",
+    "haiku",
+    "sonnet",
+    "opus",
+    "fable",
+    "cost",
+    "delegation",
+    "hooks",
+    "mod",
+    "workflow"
+  ],
+  "userConfig": {
+    "orchestratorModel": {
+      "type": "string",
+      "title": "Dispatcher model",
+      "description": "The model the main conversation runs on: an alias (haiku, sonnet, opus) or a full model id.",
+      "default": "haiku"
+    },
+    "guard": {
+      "type": "boolean",
+      "title": "Refuse work in the main conversation",
+      "description": "Deny file, shell, search and web tools to the main conversation so every task goes to a minion. Off: the routing rules are advice only.",
+      "default": true
+    }
+  }
+}

@@ -10,56 +10,154 @@
       "source": "./plugins/jira-tools",
       "description": "Jira integration tools for issues, sprints, and agile workflows",
       "version": "1.4.2",
-      "keywords": ["jira", "atlassian", "issues", "tickets", "workflow", "project-management", "sprint", "agile", "scrum", "backlog", "kanban", "sonarqube"]
+      "keywords": [
+        "jira",
+        "atlassian",
+        "issues",
+        "tickets",
+        "workflow",
+        "project-management",
+        "sprint",
+        "agile",
+        "scrum",
+        "backlog",
+        "kanban",
+        "sonarqube"
+      ]
     },
     {
       "name": "confluence-tools",
       "source": "./plugins/confluence-tools",
       "description": "Confluence integration tools for token-efficient page and folder management with caching",
       "version": "1.2.1",
-      "keywords": ["confluence", "atlassian", "wiki", "documentation", "pages", "knowledge-base", "blog"]
+      "keywords": [
+        "confluence",
+        "atlassian",
+        "wiki",
+        "documentation",
+        "pages",
+        "knowledge-base",
+        "blog"
+      ]
     },
     {
       "name": "github-tools",
       "source": "./plugins/github-tools",
       "description": "GitHub integration tools for PR lifecycle management, review automation, and repository workflows",
       "version": "1.1.1",
-      "keywords": ["github", "pull-requests", "code-review", "ci-cd", "merge", "rebase", "workflow", "automation", "github-projects"]
+      "keywords": [
+        "github",
+        "pull-requests",
+        "code-review",
+        "ci-cd",
+        "merge",
+        "rebase",
+        "workflow",
+        "automation",
+        "github-projects"
+      ]
     },
     {
       "name": "opticlaude",
       "source": "./plugins/opticlaude",
       "description": "Finds the repetitive tool calls in your session history that cost the most tokens, ships scripts that replace the common ones, and audits skills against Anthropic's skill-writing rules",
       "version": "1.0.2",
-      "keywords": ["tokens", "optimization", "session-history", "scripts", "automation", "skills", "audit", "lint", "best-practices", "permissions", "quality-of-life"]
+      "keywords": [
+        "tokens",
+        "optimization",
+        "session-history",
+        "scripts",
+        "automation",
+        "skills",
+        "audit",
+        "lint",
+        "best-practices",
+        "permissions",
+        "quality-of-life"
+      ]
     },
     {
       "name": "plane-tools",
       "source": "./plugins/plane-tools",
       "description": "Work a Plane project backlog task by task through plan, implement, PR, merge, and Done with subagent delegation",
       "version": "1.0.1",
-      "keywords": ["plane", "gitlab", "workflow", "backlog", "automation", "subagents"]
+      "keywords": [
+        "plane",
+        "gitlab",
+        "workflow",
+        "backlog",
+        "automation",
+        "subagents"
+      ]
     },
     {
       "name": "noto-mode",
       "source": "./plugins/noto-mode",
       "description": "Approves the permission prompts auto mode would skip, for accounts without auto mode, and explains every prompt that still reaches you",
       "version": "1.0.19",
-      "keywords": ["permissions", "auto-mode", "auto-approve", "classifier", "prompts", "hooks", "mod", "workflow", "quality-of-life"]
+      "keywords": [
+        "permissions",
+        "auto-mode",
+        "auto-approve",
+        "classifier",
+        "prompts",
+        "hooks",
+        "mod",
+        "workflow",
+        "quality-of-life"
+      ]
     },
     {
       "name": "coding-tunes",
       "source": "./plugins/coding-tunes",
       "description": "Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane",
       "version": "1.1.0",
-      "keywords": ["music", "youtube-music", "spotify", "winamp", "mpv", "pane", "hooks", "mod", "quality-of-life"]
+      "keywords": [
+        "music",
+        "youtube-music",
+        "spotify",
+        "winamp",
+        "mpv",
+        "pane",
+        "hooks",
+        "mod",
+        "quality-of-life"
+      ]
     },
     {
       "name": "architecture-tools",
       "source": "./plugins/architecture-tools",
       "description": "Full architecture, behavioral, and forensic code analysis that writes numbered markdown documents for a repository or mono-repo subdirectory",
       "version": "1.0.4",
-      "keywords": ["architecture", "analysis", "documentation", "security-audit", "hotspots", "git-forensics", "code-quality"]
+      "keywords": [
+        "architecture",
+        "analysis",
+        "documentation",
+        "security-audit",
+        "hotspots",
+        "git-forensics",
+        "code-quality"
+      ]
+    },
+    {
+      "name": "minions",
+      "source": "./plugins/minions",
+      "description": "Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it",
+      "version": "0.1.0",
+      "keywords": [
+        "subagents",
+        "routing",
+        "model-selection",
+        "haiku",
+        "sonnet",
+        "opus",
+        "fable",
+        "cost",
+        "delegation",
+        "hooks",
+        "mod",
+        "workflow"
+      ]
     }
   ]
 }
