@@ -23,6 +23,7 @@ const ORCHESTRATION_TOOLS: ReadonlySet<string> = new Set([
   'TodoWrite',
   'TaskCreate',
   'TaskGet',
+  'TaskList',
   'TaskUpdate',
   'GetTask',
   'EnterPlanMode',

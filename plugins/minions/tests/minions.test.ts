@@ -69,7 +69,11 @@ test('every tool but the orchestration tools is work, unknown tools included', (
     'SomeToolALaterEngineAdds',
   ]
   for (const tool of work) expect(isWorkTool(tool)).toBe(true)
-  for (const tool of ['Agent', 'AskUserQuestion', 'SendMessage', 'ListAgents', 'TaskStop', 'ToolSearch', 'Skill', 'TodoWrite', 'ExitPlanMode']) {
+  const orchestration = [
+    'Agent', 'AskUserQuestion', 'SendMessage', 'ListAgents', 'TaskStop', 'ToolSearch', 'Skill',
+    'TodoWrite', 'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate', 'GetTask', 'ExitPlanMode',
+  ]
+  for (const tool of orchestration) {
     expect(isWorkTool(tool)).toBe(false)
   }
 })
