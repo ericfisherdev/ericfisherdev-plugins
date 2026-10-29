@@ -71,7 +71,7 @@ def claude_md_section(scripts_dir: str) -> str:
         f"- File edits from Bash: `{d}/patch.py` reads hunks on stdin (`@@ path` / old / `===` / new; `@@*` replaces all). Never write inline `python3 - <<EOF ... s.replace(...)` edit scripts.",
         f"- Type declarations in `.d.ts` files: `{d}/dts_lookup.py FILE Name...` or `-g REGEX`. Never `sed -n A,Bp` or `grep` a `.d.ts` file.",
         f"- Orientation in a codebase: `{d}/src_outline.py PATH...` (symbols + line numbers), `--dump [-l A-B]` for blank-stripped content. Never `for f in ...; cat -n` loops.",
-        f"- Pull requests: `{d}/pr.py status|checks|threads|resolve|reply [-R owner/repo]`. Prefer it over `gh pr view --json`, `gh run list`, `gh api graphql` review-thread queries and `gh api repos/*/pulls/N/comments`.",
+        f"- Pull requests, workflow runs and releases: `{d}/pr.py status|checks|threads|resolve|reply|runs|release [-R owner/repo]`. `runs [-w WORKFLOW] [-b BRANCH_OR_TAG]` covers runs no PR owns, such as a tag push; `release TAG` finds drafts too. Prefer it over `gh pr view --json`, `gh run list`, `gh release view`, `gh api graphql` review-thread queries and `gh api repos/*/pulls/N/comments`.",
         END,
         "",
     ])

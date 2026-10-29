@@ -227,7 +227,7 @@ Token hygiene for Claude Code. Measures which repetitive tool calls in your sess
 | `patch.py` | inline `python3 - <<EOF ... s.replace()` edit heredocs | Anchored string-replace edits from a compact hunk spec; all-or-nothing, CRLF-safe, one-line failure with nearest-line hint |
 | `dts_lookup.py` | `sed -n A,Bp` and `grep` over `.d.ts` files | Exact declaration blocks (with JSDoc, real line numbers) by name or `-g REGEX` |
 | `src_outline.py` | `for f in ...; cat -n` loops, orientation reads | Symbols with line numbers for TS/JS/Python/Go/Rust/PHP/JVM; `--dump` strips blank lines |
-| `pr.py` | `gh pr view --json`, `gh run list`, review-thread GraphQL, `gh api .../pulls/N/comments` | One line per PR (state, review, merge state, CI counts, unresolved threads); `checks`, `threads`, `resolve`, `reply` |
+| `pr.py` | `gh pr view --json`, `gh run list`, `gh release view`, review-thread GraphQL, `gh api .../pulls/N/comments` | One line per PR (state, review, merge state, CI counts, unresolved threads); `checks`, `threads`, `resolve`, `reply`; `runs` lists workflow runs by workflow and branch or tag (tag pushes included); `release TAG` shows a release, drafts included, with its assets |
 
 **Deny rules written by setup:** `Bash(sed -n *.d.ts*)`, `Bash(for f in *cat -n*)`, `Bash(gh run list *)`. `--strict` adds `Bash(gh pr view *)`, `Bash(gh api graphql *)` and `Bash(gh api repos/*/pulls/*)`, which break skills that call those directly (github-board-workflow, pr-review-bot, review-watch, code-review). Setup records the rules it added in `~/.claude/scripts/opticlaude/installed-rules.json`; `--uninstall` removes only those. Settings and CLAUDE.md are written through a temp file and rename.
 
