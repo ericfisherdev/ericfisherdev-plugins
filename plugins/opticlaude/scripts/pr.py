@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Compact GitHub pull-request status and review-thread handling via `gh`.
+"""Compact GitHub pull-request, workflow-run and release status via `gh`.
 
     pr.py status  [-R owner/repo] [N ...]        one line per PR (all open PRs when no N)
     pr.py checks  [-R owner/repo] N              every check with status, failures first
     pr.py threads [-R owner/repo] N [--all]      review threads (unresolved by default)
     pr.py resolve [-R owner/repo] THREAD_ID ...  resolve review threads
     pr.py reply   [-R owner/repo] N COMMENT_ID BODY   reply to a review comment (BODY `-` reads stdin)
+    pr.py runs    [-R owner/repo] [-w WORKFLOW] [-b BRANCH_OR_TAG] [-L N]   recent workflow runs, newest first
+    pr.py release [-R owner/repo] TAG            a release (drafts too) and its assets
 
 Status line: `#N STATE [draft] review=DECISION merge=STATUS ci=ok/fail/pending head=sha branch unresolved=K | title`.
 Thread line: `THREAD_ID path:line @author c=COMMENT_ID: body` where COMMENT_ID is what `reply` takes.
+Run line: `RUN_ID OUTCOME workflow event ref@sha created [url when not ok]`; OUTCOME is ok, fail, pending or the conclusion.
+Release line: `TAG draft|prerelease|published name created`, then one `  asset size name` line per asset.
 Repo defaults to the checkout in the current directory. Exit 1 when gh fails.
 """
 from __future__ import annotations
@@ -17,6 +21,7 @@ import argparse
 import json
 import subprocess
 import sys
+from urllib.parse import quote
 
 PR_FIELDS = """
   number title state isDraft reviewDecision mergeable mergeStateStatus
@@ -159,6 +164,48 @@ def cmd_reply(args: argparse.Namespace) -> None:
     print(f"replied id={reply['id']} {reply['html_url']}")
 
 
+def run_outcome(run: dict) -> str:
+    if run["status"] != "completed":
+        return "pending"
+    conclusion = run["conclusion"] or "unknown"
+    return {"success": "ok", "skipped": "ok", "neutral": "ok", "failure": "fail", "timed_out": "fail", "startup_failure": "fail"}.get(conclusion, conclusion)
+
+
+def cmd_runs(args: argparse.Namespace) -> None:
+    base = f"repos/{args.repo}/actions/workflows/{quote(args.workflow, safe='')}/runs" if args.workflow else f"repos/{args.repo}/actions/runs"
+    query = f"per_page={args.limit}" + (f"&branch={quote(args.branch, safe='')}" if args.branch else "")
+    runs = json.loads(gh("api", f"{base}?{query}"))["workflow_runs"]
+    if not runs:
+        print("no runs")
+    for run in runs:
+        outcome = run_outcome(run)
+        url = f"  {run['html_url']}" if outcome != "ok" else ""
+        print(f"{run['id']} {outcome:7} {run['name']} {run['event']} {run['head_branch']}@{run['head_sha'][:7]} {run['created_at']}{url}")
+
+
+def human_size(size: int) -> str:
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{size:.0f}{unit}" if unit == "B" else f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.1f}GB"
+
+
+def cmd_release(args: argparse.Namespace) -> None:
+    # The by-tag endpoint hides drafts, so look the tag up in the release list instead.
+    releases = json.loads(gh("api", "--paginate", "--slurp", f"repos/{args.repo}/releases?per_page=100"))
+    release = next((r for page in releases for r in page if r["tag_name"] == args.tag), None)
+    if release is None:
+        print(f"no release for tag {args.tag}")
+        return
+    kind = "draft" if release["draft"] else "prerelease" if release["prerelease"] else "published"
+    print(f"{release['tag_name']} {kind} {release['name'] or '-'} {release['created_at']}  {release['html_url']}")
+    for asset in release["assets"]:
+        print(f"  asset {human_size(asset['size']):>8} {asset['name']}")
+    if not release["assets"]:
+        print("  no assets")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-R", "--repo", help="owner/name (default: current checkout)")
@@ -170,6 +217,10 @@ def main() -> int:
     p.add_argument("--width", type=int, default=200, help="max body chars per thread"); p.set_defaults(run=cmd_threads)
     p = sub.add_parser("resolve"); p.add_argument("thread_ids", nargs="+"); p.set_defaults(run=cmd_resolve)
     p = sub.add_parser("reply"); p.add_argument("number", type=int); p.add_argument("comment_id"); p.add_argument("body"); p.set_defaults(run=cmd_reply)
+    p = sub.add_parser("runs"); p.add_argument("-w", "--workflow", help="workflow file name or id, e.g. release.yml")
+    p.add_argument("-b", "--branch", help="branch or tag the run was for"); p.add_argument("-L", "--limit", type=int, default=5)
+    p.set_defaults(run=cmd_runs)
+    p = sub.add_parser("release"); p.add_argument("tag"); p.set_defaults(run=cmd_release)
 
     args = ap.parse_args()
     args.repo = args.repo or default_repo()
