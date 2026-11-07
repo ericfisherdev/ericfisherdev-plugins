@@ -9,6 +9,7 @@ import contextlib
 import copy
 import json
 import os
+import tempfile
 import time
 import uuid
 
@@ -147,10 +148,20 @@ def _read_poller(path):
 
 
 def _create_poller(path, token, now):
-    os.makedirs(os.path.dirname(str(path)) or ".", exist_ok=True)
-    fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(dict(token, heartbeat_at=now), fh)
+    """Write the lock body to a temp file and link it into place, so no reader ever sees an empty lock.
+
+    Raises FileExistsError when another watcher created the lock first.
+    """
+    folder = os.path.dirname(str(path)) or "."
+    os.makedirs(folder, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".poller-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(dict(token, heartbeat_at=now), fh)
+        os.link(tmp, str(path))
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
 
 
 def acquire_poller(path, now=None, stale=POLLER_STALE_SECONDS, pid=None):
@@ -158,13 +169,16 @@ def acquire_poller(path, now=None, stale=POLLER_STALE_SECONDS, pid=None):
     now = time.time() if now is None else now
     token = {"pid": os.getpid() if pid is None else pid, "started_at": now}
     path = str(path)
-    existing = _read_poller(path) if os.path.exists(path) else None
-    if os.path.exists(path):
+    # Heartbeats replace the file, so its mtime identifies the version that was judged.
+    observed = _lock_state(path)
+    if observed is not None:
+        existing = _read_poller(path)
         beat = existing.get("heartbeat_at") if existing else None
         if isinstance(beat, (int, float)) and now - beat < stale:
             raise PollerRunning(existing.get("pid"), now - beat)
-        with contextlib.suppress(OSError):
-            os.unlink(path)
+        # Remove only the lock judged stale, never one another watcher created or refreshed since;
+        # if it changed, the create below fails and reports that watcher.
+        _remove_if(path, lambda state: state == observed)
     try:
         _create_poller(path, token, now)
     except FileExistsError:
