@@ -19,9 +19,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from urllib.parse import quote
+
+REPO_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$")
+# GitHub's REST list endpoints return at most 100 items per page.
+MAX_PER_PAGE = 100
 
 PR_FIELDS = """
   number title state isDraft reviewDecision mergeable mergeStateStatus
@@ -58,6 +63,22 @@ def graphql(query: str, **variables: str | int) -> dict:
 
 def default_repo() -> str:
     return gh("repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner").strip()
+
+
+def repo_arg(value: str) -> str:
+    """-R value; refuses anything but owner/name, such as `-R owner/name` passed as one quoted word."""
+    if not REPO_PATTERN.match(value):
+        raise argparse.ArgumentTypeError(
+            f"must be owner/name, got {value!r} (pass -R and the repo as separate words; zsh does not split $VAR)")
+    return value
+
+
+def limit_arg(value: str) -> int:
+    """-L value; GitHub caps per_page at 100, so a larger value would silently return 100."""
+    number = int(value)
+    if not 1 <= number <= MAX_PER_PAGE:
+        raise argparse.ArgumentTypeError(f"must be 1-{MAX_PER_PAGE} (GitHub's per_page cap), got {number}")
+    return number
 
 
 def split_repo(repo: str) -> tuple[str, str]:
@@ -208,7 +229,7 @@ def cmd_release(args: argparse.Namespace) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("-R", "--repo", help="owner/name (default: current checkout)")
+    ap.add_argument("-R", "--repo", type=repo_arg, help="owner/name (default: current checkout)")
     sub = ap.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("status"); p.add_argument("numbers", nargs="*", type=int); p.set_defaults(run=cmd_status)
@@ -218,7 +239,8 @@ def main() -> int:
     p = sub.add_parser("resolve"); p.add_argument("thread_ids", nargs="+"); p.set_defaults(run=cmd_resolve)
     p = sub.add_parser("reply"); p.add_argument("number", type=int); p.add_argument("comment_id"); p.add_argument("body"); p.set_defaults(run=cmd_reply)
     p = sub.add_parser("runs"); p.add_argument("-w", "--workflow", help="workflow file name or id, e.g. release.yml")
-    p.add_argument("-b", "--branch", help="branch or tag the run was for"); p.add_argument("-L", "--limit", type=int, default=5)
+    p.add_argument("-b", "--branch", help="branch or tag the run was for")
+    p.add_argument("-L", "--limit", type=limit_arg, default=5, help=f"runs to list, 1-{MAX_PER_PAGE} (default 5)")
     p.set_defaults(run=cmd_runs)
     p = sub.add_parser("release"); p.add_argument("tag"); p.set_defaults(run=cmd_release)
 
