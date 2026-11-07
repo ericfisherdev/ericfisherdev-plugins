@@ -204,6 +204,44 @@ class LedgerTest(unittest.TestCase):
             fh.write("garbage")
         self.assertEqual(ledger.acquire_poller(self.poller, now=5000.0, pid=33)["pid"], 33)
 
+    def test_should_link_the_poller_lock_into_place_with_its_body_already_written(self):
+        bodies = []
+        real_link = os.link
+
+        def link(src, dst):
+            with open(src, encoding="utf-8") as fh:
+                bodies.append(json.load(fh))
+            real_link(src, dst)
+
+        with mock.patch("ledger.os.link", side_effect=link):
+            ledger.acquire_poller(self.poller, now=1000.0, pid=11)
+        self.assertEqual(bodies, [{"pid": 11, "started_at": 1000.0, "heartbeat_at": 1000.0}])
+        self.assertEqual(os.listdir(self.tmp.name), ["poller.lock"])
+
+    def test_should_not_take_over_a_lock_another_watcher_replaced_after_the_stale_read(self):
+        ledger.acquire_poller(self.poller, now=1000.0, pid=11)
+        os.utime(self.poller, (1000.0, 1000.0))
+        later = 1000.0 + ledger.POLLER_STALE_SECONDS + 1
+        real_read = ledger._read_poller
+        raced = []
+
+        def read_then_lose_the_race(path):
+            stale = real_read(path)
+            if not raced:
+                raced.append(None)
+                raced[0] = ledger.acquire_poller(self.poller, now=later, pid=22)
+            return stale
+
+        with mock.patch("ledger._read_poller", side_effect=read_then_lose_the_race):
+            with self.assertRaises(ledger.PollerRunning) as raised:
+                ledger.acquire_poller(self.poller, now=later, pid=33)
+        self.assertEqual(raised.exception.pid, 22)
+        self.assertEqual(raced[0]["pid"], 22)
+        with open(self.poller, encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["pid"], 22)
+        self.assertTrue(ledger.heartbeat(self.poller, raced[0], now=later + 1))
+        self.assertEqual(os.listdir(self.tmp.name), ["poller.lock"])
+
     def test_should_heartbeat_and_release_only_its_own_lock(self):
         mine = ledger.acquire_poller(self.poller, now=1000.0, pid=11)
         self.assertTrue(ledger.heartbeat(self.poller, mine, now=1500.0))
