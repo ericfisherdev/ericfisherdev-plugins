@@ -24,7 +24,8 @@ import subprocess
 import sys
 from urllib.parse import quote
 
-REPO_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9._-]+$")
+# Owners allow `_` for Enterprise Managed User accounts (username_shortcode).
+REPO_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9._-]+")
 # GitHub's REST list endpoints return at most 100 items per page.
 MAX_PER_PAGE = 100
 
@@ -67,9 +68,9 @@ def default_repo() -> str:
 
 def repo_arg(value: str) -> str:
     """-R value; refuses anything but owner/name, such as `-R owner/name` passed as one quoted word."""
-    if not REPO_PATTERN.match(value):
-        raise argparse.ArgumentTypeError(
-            f"must be owner/name, got {value!r} (pass -R and the repo as separate words; zsh does not split $VAR)")
+    if not REPO_PATTERN.fullmatch(value):
+        hint = " (pass -R and the repo as separate words; zsh does not split $VAR)" if any(c.isspace() for c in value) else ""
+        raise argparse.ArgumentTypeError(f"must be owner/name, got {value!r}{hint}")
     return value
 
 
