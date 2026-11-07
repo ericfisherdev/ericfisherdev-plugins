@@ -1,0 +1,19 @@
+{
+  "name": "review-watcher",
+  "version": "0.1.0",
+  "description": "Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command",
+  "author": {
+    "name": "Eric Fisher"
+  },
+  "license": "MIT",
+  "keywords": [
+    "github",
+    "pull-requests",
+    "code-review",
+    "review-requests",
+    "polling",
+    "tmux",
+    "windows-terminal",
+    "workflow"
+  ]
+}
