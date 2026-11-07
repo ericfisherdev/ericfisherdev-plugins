@@ -29,6 +29,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
 | [minions](#minions) | Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it | 0.1.0 |
 | [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.4 |
+| [review-watcher](#review-watcher) | Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command | 0.1.0 |
 
 ---
 
@@ -381,6 +382,30 @@ Runs a 33-section analysis of a repository (or one mono-repo subdirectory) and w
 
 **Requirements:**
 - `git` with history; authenticated `gh` CLI for the PR complexity section only (skipped without it)
+
+---
+
+### review-watcher
+
+Watches the GitHub repositories you list for review requests (and replies on your review threads) and opens one Claude Code tab per PR, titled `Rev PR#N owner/name`, running your own review command. The watcher runs in its own tab or tmux window; it never opens a second tab for a PR whose session is still in flight, and a session reports its outcome back so follow-up activity gets one more review.
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/review-watcher:setup` | Choose the review command, repos root and optional session, timing and launcher settings (`--show` prints them) |
+| `/review-watcher:watch` | Add (`owner/name ...`), remove (`--remove`) or list (`--list`) the watched repositories, saved in `repos.json` and re-read every tick |
+| `/review-watcher:start` | Check the setup and open the watcher in its own tab (`--once`, `--dry-run`) |
+
+**Install:**
+
+```bash
+/plugin install review-watcher --marketplace ericfisherdev/ericfisherdev-plugins
+```
+
+**Requirements:**
+- `gh` (logged in), `python3` 3.7+, `claude` on the PATH
+- `tmux` on Linux and macOS; Windows Terminal on Windows or WSL
 
 ---
 
