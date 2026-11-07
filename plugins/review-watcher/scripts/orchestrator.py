@@ -399,6 +399,14 @@ def preflight(cfg, which, gh, backend_factory, repos_source):
     return {"problems": problems, "notes": notes, "me": me, "backend": backend}
 
 
+def poller_heartbeat(lock, token):
+    """A heartbeat that raises Fatal once poller.lock is no longer ours, so a watcher that lost it stops."""
+    def beat():
+        if not ledger.heartbeat(lock, token):
+            raise Fatal(f"{lock} is no longer held by this watcher; another watcher took over or it was removed")
+    return beat
+
+
 def state_dir_for(args_state_dir, env):
     return Path(args_state_dir) if args_state_dir else config.state_dir(env)
 
@@ -510,7 +518,7 @@ def command_run(args, env, which, gh_factory, os_name, out=print, sleep=time.sle
         ctx = Context(cfg, state, result["me"], result["backend"], events,
                       file_repos_source(state / repos.FILE_NAME), scan=scan, clock=clock,
                       dry_run=args.dry_run, gh=gh,
-                      heartbeat=(lambda: ledger.heartbeat(lock, token)) if token else None)
+                      heartbeat=poller_heartbeat(lock, token) if token else None)
         return run_loop(ctx, args.once, sleep)
     finally:
         if token:

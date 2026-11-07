@@ -89,7 +89,7 @@ Everything lives in the state directory, `~/.claude/review-watcher/` (under `$CL
 | `repos.json` | The watched repositories |
 | `ledger.json` | `seen` (review activity recorded when a session is dispatched, and while it runs), `active` and `done`, keyed `owner/name#N` |
 | `ledger.json.lock` | Short writer lock; held for milliseconds, never across a scan or a tab launch |
-| `poller.lock` | One watcher per machine; refreshed with a heartbeat and taken over once it is stale |
+| `poller.lock` | One watcher per machine; refreshed with a heartbeat and taken over once it is stale. A watcher whose heartbeat finds the lock gone or taken over stops with a `fatal:` note |
 | `watcher.log` | Every event, appended |
 | `prompts/` | One prompt file per session, written before its tab opens and deleted when its report is folded |
 | `launchers/` | Generated bash launcher scripts; ones older than a day are swept |

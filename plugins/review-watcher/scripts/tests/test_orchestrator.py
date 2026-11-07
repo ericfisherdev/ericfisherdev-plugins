@@ -1126,6 +1126,21 @@ class StartupTest(unittest.TestCase):
         self.assertTrue(any(f"events go to this window and {log}" in line for line in self.lines))
         self.assertEqual(scans.scanned_repos(), ["acme/widgets"])
 
+    def test_should_stop_when_another_watcher_takes_the_poller_lock_over(self):
+        self.configure()
+        scans = Scans()
+        lock = str(self.state / "poller.lock")
+        other = {"pid": 4242, "started_at": 1.0, "heartbeat_at": time.time()}
+
+        def take_over(_seconds):
+            Path(lock).write_text(json.dumps(other), encoding="utf-8")
+
+        code, _ = self.run_main("--state-dir", str(self.state), scans=scans, sleep=take_over)
+        self.assertEqual(code, 1)
+        self.assertEqual(len(scans.calls), 1)
+        self.assertTrue(any("fatal:" in line and "another watcher took over" in line for line in self.lines))
+        self.assertEqual(json.loads(Path(lock).read_text(encoding="utf-8")), other)
+
     def test_should_refuse_to_run_when_no_repo_is_watched(self):
         self.configure(watched=())
         scans = Scans()
