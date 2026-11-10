@@ -232,6 +232,11 @@ def prompt_text(ctx, repo, pr, session, dispatch_id):
     if after:
         lines += ["Once the report command has succeeded, and only then, run "
                   f"`{fill_command(after, repo, pr)}` as your last action.", ""]
+    if ctx.cfg.get("closeTabWhenDone"):
+        close = (f'python3 "{SCRIPTS.as_posix()}/close_tab.py" --ledger "{Path(ctx.ledger_path).as_posix()}" '
+                 f"--repo {repo} --pr {pr} --dispatch {dispatch_id}")
+        lines += ["Once the report command has succeeded and every step above is done, close this tab by "
+                  "running this as the very last thing you do; it ends this session:", "", f"    {close}", ""]
     return "\n".join(lines)
 
 

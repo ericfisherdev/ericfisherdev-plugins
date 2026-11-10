@@ -1,6 +1,6 @@
 {
   "name": "review-watcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command",
   "author": {
     "name": "Eric Fisher"
