@@ -76,6 +76,7 @@ Stored in `~/.claude/review-watcher/config.json` (under `$CLAUDE_CONFIG_DIR` whe
 | `launcher` | `launcher` | auto | `auto`, `windows`, `wsl` or `tmux`. `auto` picks WSL when `WSL_DISTRO_NAME` is set, Windows on Windows or under MSYS, else tmux. |
 | `reposRoot` | `repos-root` | `~/GitHub` | Directory that holds your repo clones, each at `{reposRoot}/{name}`. The watcher tab opens here. |
 | `noWorktreeDir` | `no-worktree-dir` | `clone` | Where a session tab opens when no worktree has the PR branch: `clone` or `root`. |
+| `closeTabWhenDone` | `close-tab-when-done` | `false` | `true` makes each session close its own tab as its very last step, after its report (and any after-report command) succeeds. tmux launcher only; see [Closing finished tabs](#closing-finished-tabs). |
 
 The commands may only contain letters, digits, spaces and `: _ . , = @ / # -` besides the placeholders; quotes, backticks, `$`, backslashes and `; | & < > ( )` are refused, because the command is written into a prompt file.
 
@@ -110,6 +111,18 @@ python3 "<plugin>/scripts/report.py" --ledger "<ledger.json>" --repo <owner/name
 | `failed` | The workflow hit an error and could not complete |
 
 On the next tick the watcher moves the entry to `done` and emits `finished`.
+
+## Closing finished tabs
+
+With `close-tab-when-done` set to `true`, the prompt ends with one more command, run after everything else:
+
+```bash
+python3 "<plugin>/scripts/close_tab.py" --ledger "<ledger.json>" --repo <owner/name> --pr <n> --dispatch <id>
+```
+
+It kills the tmux pane named by `TMUX_PANE`, which closes the session's window and ends the session with it. It refuses, and the tab stays open, when the ledger holds no report for that dispatch, so a session that stopped before reporting stays readable. Under the Windows and WSL launchers it exits with an error and closes nothing.
+
+For an unattended loop, pair it with a review command that never stops to ask, such as `/pr-reviewer:review {repo} {pr} --auto`, which posts every verified finding or an approval.
 
 ## Follow-up rules
 

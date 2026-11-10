@@ -29,7 +29,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [coding-tunes](#coding-tunes) | Plays a YouTube Music or Spotify playlist while Claude works and pauses whenever any session needs your input, in a Winamp-style pane | 1.1.0 |
 | [minions](#minions) | Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it | 0.1.0 |
 | [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.4 |
-| [review-watcher](#review-watcher) | Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command | 0.1.0 |
+| [review-watcher](#review-watcher) | Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command | 0.1.1 |
 | [pr-reviewer](#pr-reviewer) | Reviews a GitHub pull request with two independent reviewers, size-gated lenses and a verification pass, then posts the findings you select as one review; pairs with review-watcher | 0.1.4 |
 
 ---
@@ -422,7 +422,7 @@ Reviews one GitHub pull request on any repository and posts the findings you sel
 
 **Agents:** `defect-reviewer`, `context-reviewer`, `reach-lens`, `data-deploy-lens`, `security-lens`, `verifier`, `refuter`
 
-**With review-watcher:** set the review command to `/pr-reviewer:review {repo} {pr}`.
+**With review-watcher:** set the review command to `/pr-reviewer:review {repo} {pr}`, or `/pr-reviewer:review {repo} {pr} --auto` with `close-tab-when-done` set to `true` for fully unattended reviews.
 
 **Install:**
 

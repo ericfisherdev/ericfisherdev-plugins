@@ -164,6 +164,14 @@ def int_validator(minimum):
     return validate
 
 
+def validate_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    raise ConfigError("must be true or false")
+
+
 def choice_validator(*choices):
     def validate(value):
         if not isinstance(value, str) or value.strip() not in choices:
@@ -194,6 +202,7 @@ SETTINGS = {
     "launcher": ("launcher", choice_validator(*LAUNCHERS), "auto"),
     "repos-root": ("reposRoot", validate_path, None),
     "no-worktree-dir": ("noWorktreeDir", choice_validator("clone", "root"), "clone"),
+    "close-tab-when-done": ("closeTabWhenDone", validate_bool, False),
 }
 
 

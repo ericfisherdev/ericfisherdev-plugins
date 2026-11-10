@@ -43,7 +43,7 @@ class ConfigTest(unittest.TestCase):
     def test_should_know_only_the_review_watcher_settings(self):
         self.assertEqual(set(config.SETTINGS), {
             "review-command", "after-report-command", "model", "effort", "interval-seconds", "stale-minutes",
-            "launcher", "repos-root", "no-worktree-dir"})
+            "launcher", "repos-root", "no-worktree-dir", "close-tab-when-done"})
         for removed in ("feedback-command", "sprint-filter", "slack-relay", "change-request-bot", "repos"):
             with self.assertRaisesRegex(config.ConfigError, "unknown setting", msg=removed):
                 self.get(removed)
@@ -217,6 +217,23 @@ class ConfigTest(unittest.TestCase):
             with self.assertRaises(config.ConfigError, msg=value):
                 self.set("no-worktree-dir", value)
         self.assertFalse(self.path().exists())
+
+    def test_should_default_close_tab_when_done_to_false(self):
+        self.assertEqual(self.get("close-tab-when-done"),
+                         {"key": "close-tab-when-done", "value": False, "source": "default"})
+        self.assertIs(config.load(self.env, self.home)["closeTabWhenDone"], False)
+
+    def test_should_accept_true_and_false_for_close_tab_when_done(self):
+        self.assertIs(self.set("close-tab-when-done", " TRUE ")["value"], True)
+        self.assertEqual(self.get("close-tab-when-done")["source"], "config")
+        self.assertIs(config.load(self.env, self.home)["closeTabWhenDone"], True)
+        self.assertIs(self.set("close-tab-when-done", "false")["value"], False)
+        self.assertEqual(self.get("close-tab-when-done")["source"], "config")
+
+    def test_should_reject_other_close_tab_when_done_values(self):
+        for value in ("yes", "1", "", 1):
+            with self.assertRaisesRegex(config.ConfigError, "must be true or false", msg=repr(value)):
+                self.set("close-tab-when-done", value)
 
     def test_should_convert_msys_paths_only_on_windows(self):
         self.assertEqual(config.native_path("/c/Users/x/GitHub", "nt"), "C:\\Users\\x\\GitHub")

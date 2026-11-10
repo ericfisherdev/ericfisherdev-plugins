@@ -34,7 +34,7 @@ PROMPT = "review-acme_widgets-1.md"
 WATCHED = ["acme/widgets", "acme/gadgets"]
 CFG = {"reviewCommand": "/team-review {repo} {pr}", "afterReportCommand": None, "model": None, "effort": None,
        "staleMinutes": 45, "intervalSeconds": 300, "launcher": "auto", "reposRoot": "C:/Users/x/GitHub",
-       "noWorktreeDir": "clone"}
+       "noWorktreeDir": "clone", "closeTabWhenDone": False}
 
 
 class Clock:
@@ -224,6 +224,23 @@ class OrchestratorTest(unittest.TestCase):
         after = text.index("`/sessions close --self --tab-close` as your last action")
         self.assertGreater(after, text.index("report.py"))
         self.assertGreater(after, text.index("headRefOid"))
+
+    def test_should_end_the_prompt_with_the_close_tab_step_when_enabled(self):
+        self.make(cfg={"closeTabWhenDone": True, "afterReportCommand": "/done"})
+        self.scans.review = review_result([review_new()], [KEY])
+        self.assertEqual(orchestrator.tick(self.ctx), 1)
+        text = (self.state / "prompts" / PROMPT).read_text(encoding="utf-8")
+        dispatch_id = self.data()["active"][KEY]["dispatch"]
+        close = text.index("close_tab.py")
+        self.assertIn(f"/close_tab.py\" --ledger \"{Path(self.ctx.ledger_path).as_posix()}\" "
+                      f"--repo {REPO} --pr 1 --dispatch {dispatch_id}\n", text)
+        self.assertGreater(close, text.index("report.py"))
+        self.assertGreater(close, text.index("`/done` as your last action"))
+
+    def test_should_leave_the_close_tab_step_out_by_default(self):
+        self.scans.review = review_result([review_new()], [KEY])
+        orchestrator.tick(self.ctx)
+        self.assertNotIn("close_tab.py", (self.state / "prompts" / PROMPT).read_text(encoding="utf-8"))
 
     def test_should_fill_placeholders_in_the_after_report_command(self):
         self.make(cfg={"afterReportCommand": "/done {repo} {pr}"})
