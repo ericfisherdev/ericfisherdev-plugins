@@ -115,6 +115,20 @@ def send(gh: Gh, plan: dict, payload_path: Path, summary: str, selected: List[Fi
             raise CommandError(f"{first}; retry without inline comments also failed: {second}") from None
 
 
+def note_head_after_post(gh: Gh, plan: dict, event: Event, notes: List[str]) -> None:
+    """Say so when a push landed during the POST. The review is already on GitHub, so this never raises."""
+    if event is Event.COMMENT:
+        return
+    try:
+        moved = gh.pr_head(plan["repo"], plan["pr"]) != plan["head"]
+    except CommandError:
+        notes.append("Could not re-read the PR head after posting, so a push during the POST cannot be ruled out.")
+        return
+    if moved:
+        notes.append(f"The PR head moved while the review was being posted; the {event.value} applies to "
+                     f"{plan['head'][:9]}, not to the new commits.")
+
+
 def close_ledger(ledger: Ledger, plan: dict, findings: List[Finding], chosen: Set[int], event: Optional[Event],
                  url: Optional[str]) -> None:
     for finding in findings:
@@ -157,9 +171,7 @@ def post(repo: str, pr: int, selection: str, *, gh: Gh, root: Path, approve: boo
                 "payload": build_payload(plan, summary, selected, event, notes)}
     url = send(gh, plan, dirs.run / "review.json", summary, selected, event, notes)
     # GitHub has no conditional review create, so a push during the POST can only be detected afterwards.
-    if event is not Event.COMMENT and gh.pr_head(repo, pr) != plan["head"]:
-        notes.append(f"The PR head moved while the review was being posted; the {event.value} applies to "
-                     f"{plan['head'][:9]}, not to the new commits.")
+    note_head_after_post(gh, plan, event, notes)
     close_ledger(ledger, plan, findings, chosen, event, url)
     return {"status": "ok", "outcome": "posted", "posted": len(selected), "event": event.value, "url": url,
             "notes": notes}

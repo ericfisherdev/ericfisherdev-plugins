@@ -308,6 +308,20 @@ class PostTest(RunCase):
         self.assertEqual(result["event"], "APPROVE")
         self.assertTrue(any("moved while the review was being posted" in note for note in result["notes"]))
 
+    def test_a_failed_head_lookup_after_posting_still_closes_the_pass(self):
+        lookups = []
+
+        def runner(argv, cwd=None):
+            if "headRefOid" in " ".join(argv):
+                lookups.append(argv)
+                return (0, HEAD + "\n", "") if len(lookups) == 1 else (1, "", "HTTP 502")
+            return 0, "https://example.test/r\n", ""
+
+        result = post_module.post(REPO, 7, "all", gh=Gh(runner), root=self.root)
+        self.assertEqual(result["outcome"], "posted")
+        self.assertEqual(Ledger.load(self.dirs.ledger).last_closed_sha(), HEAD)
+        self.assertTrue(any("Could not re-read the PR head" in note for note in result["notes"]))
+
     def test_failed_post_records_nothing(self):
         self.gh.on("pulls/7/reviews", rc=1, stderr="HTTP 500")
         with self.assertRaises(CommandError):
