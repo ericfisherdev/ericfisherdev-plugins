@@ -157,15 +157,20 @@ def enforce_blocking(finding: Finding) -> None:
 
 
 def apply_refuter(findings: List[Finding], dropped: List[dict], verdicts: List[dict]) -> List[Finding]:
-    """Raises FindingsError when a verdict names an unknown finding or carries an unknown value."""
+    """The refuter only lowers or removes, and only what was blocking; anything else in a verdict is ignored.
+
+    Raises FindingsError when a verdict names an unknown finding or carries an unknown value.
+    """
     by_key = {f.ledger_key: f for f in findings}
     for item in verdicts:
         try:
             finding = by_key[f"{item['file']}:{item['key']}"]
             verdict = RefuterVerdict(item["verdict"])
             reason = str(item["reason"])
+            if not finding.blocking:
+                continue
             if verdict is RefuterVerdict.DOWNGRADED:
-                finding.severity = Severity(item["severity"])
+                finding.severity = max(finding.severity, Severity(item["severity"]), key=lambda s: s.rank)
                 finding.blocking = bool(item["blocking"])
         except (KeyError, TypeError, ValueError) as exc:
             raise FindingsError(f"refuter verdict for {item.get('key', '?')}: bad field ({exc})") from None

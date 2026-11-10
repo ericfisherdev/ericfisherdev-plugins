@@ -185,7 +185,7 @@ class UntrustedInputTest(unittest.TestCase):
         (self.tree / "CLAUDE.md").write_text("rules", encoding="utf-8")
         records = intake.diffmap.parse_diff("diff --git a/CLAUDE.md b/CLAUDE.md\n--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-a\n+b\n")
         text = intake.manifest(pr_meta(), REPO, "full", "Review the whole PR.", str(self.tree), records,
-                               intake.rule_files(str(self.tree), records))
+                               intake.rule_files(str(self.tree), records), records)
         self.assertIn("CLAUDE.md (changed by this PR", text)
 
     def test_a_thread_the_pr_author_started_is_marked_as_no_reason_to_drop(self):
@@ -225,9 +225,13 @@ class IncrementalTest(IntakeCase):
         self.git.on(["cat-file", HEAD], rc=0)
         self.git.on("worktree add")
 
-    def test_reviews_only_the_range_but_anchors_against_the_whole_pr(self):
+    def reachable_ancestor(self, range_diff):
         self.git.on(["cat-file", OLD], rc=0)
-        self.git.on(f"diff {OLD}..{HEAD}", self.DELTA)
+        self.git.on(["merge-base --is-ancestor", OLD, HEAD], rc=0)
+        self.git.on(f"diff {OLD}..{HEAD}", range_diff)
+
+    def test_reviews_only_the_range_but_anchors_against_the_whole_pr(self):
+        self.reachable_ancestor(self.DELTA)
         result = self.prepare()
         self.assertEqual(result["mode"], "incremental")
         self.assertEqual(result["lines"], 1)
@@ -236,15 +240,54 @@ class IncrementalTest(IntakeCase):
         self.assertIn("db/migrations/001.sql", json.loads((self.dirs.run / "anchors.json").read_text(encoding="utf-8")))
 
     def test_no_content_change_since_the_last_pass_is_a_no_op(self):
-        self.git.on(["cat-file", OLD], rc=0)
-        self.git.on(f"diff {OLD}..{HEAD}", "")
+        self.reachable_ancestor("")
         self.assertEqual(self.prepare()["outcome"], "no-op")
 
-    def test_rewritten_history_falls_back_to_a_full_review(self):
+    def test_base_branch_files_merged_into_the_range_are_out_of_scope(self):
+        merged = "diff --git a/base/only.py b/base/only.py\n--- a/base/only.py\n+++ b/base/only.py\n@@ -1 +1 @@\n-a\n+BASE\n"
+        self.reachable_ancestor(self.DELTA + merged)
+        result = self.prepare()
+        self.assertEqual((result["mode"], result["lines"]), ("incremental", 1))
+        self.assertNotIn("base/only.py", (self.dirs.run / "review.patch").read_text(encoding="utf-8"))
+
+    def test_a_range_holding_only_base_branch_files_is_a_no_op(self):
+        self.reachable_ancestor("diff --git a/base/only.py b/base/only.py\n--- a/base/only.py\n+++ b/base/only.py\n@@ -1 +1 @@\n-a\n+b\n")
+        self.assertEqual(self.prepare()["outcome"], "no-op")
+
+    def test_old_head_still_in_the_object_store_after_a_rebase_is_reviewed_in_full(self):
+        self.git.on(["cat-file", OLD], rc=0)
+        self.git.on(["merge-base --is-ancestor", OLD, HEAD], rc=1)
+        result = self.prepare()
+        self.assertEqual(result["mode"], "full")
+        self.assertEqual(self.git.count(f"diff {OLD}..{HEAD}"), 0)
+        self.assertTrue(any("not an ancestor" in note for note in result["notes"]))
+
+    def test_pruned_old_head_is_reviewed_in_full(self):
         self.git.on(["cat-file", OLD], rc=1)
         result = self.prepare()
         self.assertEqual(result["mode"], "full")
-        self.assertTrue(any("not reachable" in note for note in result["notes"]))
+        self.assertTrue(any("not an ancestor" in note for note in result["notes"]))
+
+    def test_a_convention_file_changed_earlier_in_the_pr_stays_marked(self):
+        (self.dirs.tree).mkdir(parents=True)
+        (self.dirs.tree / "CLAUDE.md").write_text("rules", encoding="utf-8")
+        self.git.on("worktree remove")
+        self.gh.routes.clear()
+        self.gh_ready(diff=DIFF + "diff --git a/CLAUDE.md b/CLAUDE.md\n--- a/CLAUDE.md\n+++ b/CLAUDE.md\n@@ -1 +1 @@\n-a\n+b\n")
+        self.reachable_ancestor(self.DELTA)
+        self.prepare()
+        self.assertIn("CLAUDE.md (changed by this PR", (self.dirs.run / "manifest.md").read_text(encoding="utf-8"))
+
+
+class DiffOnlyRereviewTest(IntakeCase):
+    def test_no_tree_gets_its_own_note_not_the_rewrite_one(self):
+        self.close_pass_at(OLD)
+        self.gh_ready()
+        self.git.on("--show-toplevel", rc=1)
+        result = self.prepare()
+        self.assertEqual(result["mode"], "full")
+        self.assertTrue(any("no tree at the PR head" in note for note in result["notes"]))
+        self.assertFalse(any("rewritten" in note for note in result["notes"]))
 
 
 class CleanupTest(IntakeCase):

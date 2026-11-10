@@ -17,7 +17,7 @@ from typing import List, Optional, Set
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from clients import CommandError, Gh  # noqa: E402
+from clients import CommandError, CommandTimeout, Gh  # noqa: E402
 from findings import Anchor, Event, Finding, FindingsError, label, read_json  # noqa: E402
 from ledger import Dirs, Disposition, Ledger, LedgerError, state_root  # noqa: E402
 
@@ -95,13 +95,16 @@ def build_payload(plan: dict, summary: str, selected: List[Finding], event: Even
 
 def send(gh: Gh, plan: dict, payload_path: Path, summary: str, selected: List[Finding], event: Event,
          notes: List[str]) -> str:
-    """The review URL. Retries once with every comment in the review body when GitHub refuses the inline anchors."""
+    """The review URL. Retries once with every comment in the review body when GitHub refuses the inline anchors.
+
+    A timeout is never retried: GitHub may already have accepted the review, and a retry would post it twice.
+    """
     payload = build_payload(plan, summary, selected, event, notes)
     payload_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     try:
         return gh.post_review(plan["repo"], plan["pr"], str(payload_path))
     except CommandError as first:
-        if "comments" not in payload:
+        if "comments" not in payload or isinstance(first, CommandTimeout):
             raise
         notes.append("Inline anchors were refused, so every comment is in this body.")
         fallback = build_payload(plan, summary, selected, event, notes, inline=False)
@@ -153,6 +156,10 @@ def post(repo: str, pr: int, selection: str, *, gh: Gh, root: Path, approve: boo
         return {"status": "ok", "outcome": "skipped", "dry_run": True, "event": event.value,
                 "payload": build_payload(plan, summary, selected, event, notes)}
     url = send(gh, plan, dirs.run / "review.json", summary, selected, event, notes)
+    # GitHub has no conditional review create, so a push during the POST can only be detected afterwards.
+    if event is not Event.COMMENT and gh.pr_head(repo, pr) != plan["head"]:
+        notes.append(f"The PR head moved while the review was being posted; the {event.value} applies to "
+                     f"{plan['head'][:9]}, not to the new commits.")
     close_ledger(ledger, plan, findings, chosen, event, url)
     return {"status": "ok", "outcome": "posted", "posted": len(selected), "event": event.value, "url": url,
             "notes": notes}

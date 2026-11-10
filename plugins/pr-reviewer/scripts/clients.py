@@ -28,11 +28,15 @@ class CommandError(Exception):
     """A gh or git command failed, timed out, or is not installed."""
 
 
+class CommandTimeout(CommandError):
+    """The command did not finish in time, so whether it took effect is unknown."""
+
+
 def run_command(argv: List[str], cwd: Optional[str] = None, run=subprocess.run):
     try:
         proc = run(argv, cwd=cwd, capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        raise CommandError(f"{' '.join(argv[:3])} timed out after {TIMEOUT_SECONDS}s") from None
+        raise CommandTimeout(f"{' '.join(argv[:3])} timed out after {TIMEOUT_SECONDS}s") from None
     except FileNotFoundError:
         raise CommandError(f"{argv[0]} is not installed or not on PATH") from None
     return proc.returncode, proc.stdout, proc.stderr
@@ -111,6 +115,10 @@ class Git:
 
     def has_commit(self, cwd: str, sha: str) -> bool:
         rc, _, _ = self._try(cwd, ["cat-file", "-e", f"{sha}^{{commit}}"])
+        return rc == 0
+
+    def is_ancestor(self, cwd: str, old: str, new: str) -> bool:
+        rc, _, _ = self._try(cwd, ["merge-base", "--is-ancestor", old, new])
         return rc == 0
 
     def fetch_pr(self, cwd: str, pr: int) -> None:

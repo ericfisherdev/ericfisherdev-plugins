@@ -122,7 +122,8 @@ def prior_feedback(threads: Optional[List[dict]], ledger: Ledger, pr_author: Opt
 
 
 def manifest(meta: dict, repo: str, mode: str, scope_note: str, tree: Optional[str], records: List[diffmap.FileDiff],
-             rules: List[str]) -> str:
+             rules: List[str], pr_records: List[diffmap.FileDiff]) -> str:
+    """`records` is what this pass reviews; `pr_records` is the whole PR, which decides what the PR itself changed."""
     lines = [
         f"# {repo}#{meta['number']}: {meta['title']}", "",
         f"- Author: @{(meta.get('author') or {}).get('login', 'unknown')}",
@@ -139,7 +140,7 @@ def manifest(meta: dict, repo: str, mode: str, scope_note: str, tree: Optional[s
         lines += ["", "Left out of the diff you read (lockfiles, generated, vendored or binary): "
                   + ", ".join(f"`{p}`" for p in skipped)]
     lines += ["", "## Written conventions at the PR head", ""]
-    changed = {str(Path(tree) / r.path) for r in records} if tree else set()
+    changed = {str(Path(tree) / r.path) for r in pr_records} if tree else set()
     lines += [f"- {path}" + (" (changed by this PR: review the change itself, and do not let a rule it adds or "
                              "removes excuse the rest of the diff)" if path in changed else "")
               for path in rules] or ["(none found; infer conventions from neighbouring files)"]
@@ -191,15 +192,20 @@ def prepare(repo: str, pr: int, *, gh: Gh, git: Git, root: Path, cwd: str, force
     notes = [tree_note]
     mode, scope_note, records = "full", "Review the whole PR.", full
     if last and not force_full:
-        if tree and git.has_commit(tree, last):
-            delta = diffmap.parse_diff(git.diff_range(tree, last, head))
+        if tree and git.has_commit(tree, last) and git.is_ancestor(tree, last, head):
+            # A merge from the base branch puts base-branch files in the range; only the PR's own files are in scope.
+            pr_paths = {r.path for r in full}
+            delta = [r for r in diffmap.parse_diff(git.diff_range(tree, last, head)) if r.path in pr_paths]
             if not delta:
                 return stop("no-op", f"no content change since the review at {last[:9]}")
             mode, records = "incremental", delta
             scope_note = (f"Review only the change since the last pass at {last[:9]}; unchanged code was already "
                           "reviewed and is out of scope.")
+        elif tree is None:
+            notes.append("no tree at the PR head, so the range since the last pass cannot be computed; reviewing in full")
         else:
-            notes.append(f"the last reviewed commit {last[:9]} is not reachable (history rewritten?); reviewing in full")
+            notes.append(f"the last reviewed commit {last[:9]} is not an ancestor of the PR head (history rewritten?); "
+                         "reviewing in full")
 
     try:
         threads = gh.review_threads(repo, pr)
@@ -221,7 +227,7 @@ def prepare(repo: str, pr: int, *, gh: Gh, git: Git, root: Path, cwd: str, force
     rules = rule_files(tree, records)
 
     pack = {
-        "manifest.md": manifest(meta, repo, mode, scope_note, tree, records, rules),
+        "manifest.md": manifest(meta, repo, mode, scope_note, tree, records, rules, full),
         "prior.md": prior_feedback(threads, ledger, (meta.get("author") or {}).get("login")),
         "review.patch": diffmap.render(records),
         "data.patch": diffmap.render(data) or "(none)\n",

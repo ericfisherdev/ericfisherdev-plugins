@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import findings as findings_module  # noqa: E402
 import post as post_module  # noqa: E402
-from clients import CommandError, Gh  # noqa: E402
+from clients import CommandError, CommandTimeout, Gh  # noqa: E402
 from fakes import HEAD, FakeRunner  # noqa: E402
 from findings import Anchor, Category, Event, Finding, FindingsError, Severity  # noqa: E402
 from ledger import Dirs, Ledger  # noqa: E402
@@ -119,6 +119,18 @@ class FinalizeTest(RunCase):
                          [("stands", "major", True), ("down", "minor", False)])
         self.assertEqual(stored["dropped"][0]["disposition"], "refuted")
         self.assertEqual(Ledger.load(self.dirs.ledger).findings["src/app.py:gone"]["disposition"], "refuted")
+
+    def test_refuter_can_only_lower_and_only_what_was_blocking(self):
+        self.verified(raw("raise", severity="major", blocking=True, line=11),
+                      raw("quiet", severity="minor", blocking=False, line=12))
+        self.write("refuted.json", {"verdicts": [
+            {"key": "raise", "file": "src/app.py", "verdict": "downgraded", "severity": "critical", "blocking": False,
+             "reason": "tries to raise severity"},
+            {"key": "quiet", "file": "src/app.py", "verdict": "downgraded", "severity": "critical", "blocking": True,
+             "reason": "was never blocking"}]})
+        self.finalize()
+        self.assertEqual([(f["key"], f["severity"], f["blocking"]) for f in self.stored()["findings"]],
+                         [("raise", "major", False), ("quiet", "minor", False)])
 
     def test_own_pr_and_draft_propose_a_comment(self):
         self.verified(raw("a"))
@@ -269,6 +281,32 @@ class PostTest(RunCase):
         self.assertIn("comments", attempts[0])
         self.assertNotIn("comments", attempts[1])
         self.assertIn("### `src/app.py:11`", attempts[1]["body"])
+
+    def test_a_timed_out_post_is_never_retried(self):
+        posts = []
+
+        def runner(argv, cwd=None):
+            if "headRefOid" in " ".join(argv):
+                return 0, HEAD + "\n", ""
+            posts.append(argv)
+            raise CommandTimeout("gh api timed out")
+
+        with self.assertRaises(CommandTimeout):
+            post_module.post(REPO, 7, "all", gh=Gh(runner), root=self.root)
+        self.assertEqual(len(posts), 1)
+        self.assertIsNone(Ledger.load(self.dirs.ledger).last_closed_sha())
+
+    def test_head_moving_during_the_post_is_reported(self):
+        heads = [HEAD, "f" * 40]
+
+        def runner(argv, cwd=None):
+            if "headRefOid" in " ".join(argv):
+                return 0, heads.pop(0) + "\n", ""
+            return 0, "https://example.test/r\n", ""
+
+        result = post_module.post(REPO, 7, "all", gh=Gh(runner), root=self.root)
+        self.assertEqual(result["event"], "APPROVE")
+        self.assertTrue(any("moved while the review was being posted" in note for note in result["notes"]))
 
     def test_failed_post_records_nothing(self):
         self.gh.on("pulls/7/reviews", rc=1, stderr="HTTP 500")
