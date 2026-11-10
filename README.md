@@ -30,7 +30,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [minions](#minions) | Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it | 0.1.0 |
 | [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.4 |
 | [review-watcher](#review-watcher) | Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command | 0.1.0 |
-| [pr-reviewer](#pr-reviewer) | Reviews a GitHub pull request with two independent reviewers, size-gated lenses and a verification pass, then posts the findings you select as one review; pairs with review-watcher | 0.1.0 |
+| [pr-reviewer](#pr-reviewer) | Reviews a GitHub pull request with two independent reviewers, size-gated lenses and a verification pass, then posts the findings you select as one review; pairs with review-watcher | 0.1.1 |
 
 ---
 

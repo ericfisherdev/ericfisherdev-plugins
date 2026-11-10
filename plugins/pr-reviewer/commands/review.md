@@ -71,7 +71,7 @@ Then decide the selection:
 python3 "{SCRIPTS}/post.py" {owner/name} {pr} --select {all|none|1,3,5}
 ```
 
-Add `--approve` for a plain approval with nothing selected (and always under `--auto`), `--comment-only` and `--dry-run` when the user gave them. The script picks the event from the selection (request changes when a selected finding is blocking, approve otherwise, comment on your own PR, on a draft, or when the head moved since the review), anchors each comment, posts one review, and records every finding as posted or declined in the ledger.
+Add `--approve` for a plain approval with nothing selected (and always under `--auto`), `--comment-only` and `--dry-run` when the user gave them. The script picks the event from the selection (request changes when a selected finding is blocking, approve otherwise, comment on your own PR, on a draft, when the head moved since the review, or when the diff has files that were not reviewed), anchors each comment, posts one review, and records every finding as posted or declined in the ledger.
 
 It prints `{"status", "outcome", "event", "url", "posted", "notes"}`. Tell the user the event, the number of comments, the URL and any note. Under `--dry-run`, show the payload's event and say nothing was posted. On `"status": "error"` show the error; the outcome is `failed`.
 

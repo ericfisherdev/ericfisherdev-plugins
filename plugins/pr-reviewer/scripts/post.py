@@ -44,10 +44,13 @@ def parse_selection(text: str, findings: List[Finding]) -> Set[int]:
     return chosen
 
 
-def decide_event(selected: List[Finding], *, own_pr: bool, draft: bool, head_moved: bool, comment_only: bool) -> Event:
+def decide_event(selected: List[Finding], *, own_pr: bool, draft: bool, head_moved: bool, comment_only: bool,
+                 unreviewed: bool = False) -> Event:
     if own_pr or draft or head_moved or comment_only:
         return Event.COMMENT
-    return Event.REQUEST_CHANGES if any(f.blocking for f in selected) else Event.APPROVE
+    if any(f.blocking for f in selected):
+        return Event.REQUEST_CHANGES
+    return Event.COMMENT if unreviewed else Event.APPROVE
 
 
 def comment_body(finding: Finding, with_suggestion: bool) -> str:
@@ -140,8 +143,11 @@ def post(repo: str, pr: int, selection: str, *, gh: Gh, root: Path, approve: boo
     head_moved = gh.pr_head(repo, pr) != plan["head"]
     if head_moved:
         notes.append("The PR head moved after this review, so it is a comment, not a verdict on the new commits.")
+    unreviewed = list(plan.get("unreviewed") or [])
+    if unreviewed:
+        notes.append(f"Not reviewed, so not approved: {', '.join(unreviewed)}.")
     event = decide_event(selected, own_pr=plan.get("own_pr", False), draft=plan.get("draft", False),
-                         head_moved=head_moved, comment_only=comment_only)
+                         head_moved=head_moved, comment_only=comment_only, unreviewed=bool(unreviewed))
     summary = str(stored.get("summary") or "")
     if dry_run:
         return {"status": "ok", "outcome": "skipped", "dry_run": True, "event": event.value,

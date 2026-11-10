@@ -188,10 +188,13 @@ def place(finding: Finding, anchors: Dict[str, List[List[int]]]) -> None:
     finding.start_line = None
 
 
-def propose_event(findings: List[Finding], own_pr: bool, draft: bool) -> Event:
+def propose_event(findings: List[Finding], own_pr: bool, draft: bool, unreviewed: bool = False) -> Event:
+    """An approval never covers files nobody read, so skipped files cap a clean review at COMMENT."""
     if own_pr or draft:
         return Event.COMMENT
-    return Event.REQUEST_CHANGES if any(f.blocking for f in findings) else Event.APPROVE
+    if any(f.blocking for f in findings):
+        return Event.REQUEST_CHANGES
+    return Event.COMMENT if unreviewed else Event.APPROVE
 
 
 def number(findings: List[Finding]) -> List[Finding]:
@@ -225,6 +228,9 @@ def render(plan: dict, findings: List[Finding], dropped: List[dict], summary: st
         lines += [f"- {item.get('title', '?')} ({item.get('file', '?')}:{item.get('line', '?')}): "
                   f"{item.get('reason', 'no reason given')}" for item in dropped]
         lines.append("")
+    if plan.get("unreviewed"):
+        lines += [f"Not reviewed ({len(plan['unreviewed'])} lockfile, generated, vendored or binary file(s)), so this "
+                  "review cannot approve: " + ", ".join(f"`{path}`" for path in plan["unreviewed"]), ""]
     if plan.get("review_decision"):
         lines.append(f"Current review state on GitHub: {plan['review_decision']}.")
     lines += [f"Note: {note}" for note in plan.get("notes", [])]
@@ -276,7 +282,7 @@ def finalize(repo: str, pr: int, *, root: Path, now: str) -> dict:
     for finding in findings:
         place(finding, anchors)
     findings = number(findings)
-    event = propose_event(findings, plan.get("own_pr", False), plan.get("draft", False))
+    event = propose_event(findings, plan.get("own_pr", False), plan.get("draft", False), bool(plan.get("unreviewed")))
     record_pass(Ledger.load(dirs.ledger), plan, findings, dropped, event, now)
     (dirs.run / "findings.json").write_text(json.dumps(
         {"summary": summary, "proposed_event": event.value, "findings": [f.to_json() for f in findings],

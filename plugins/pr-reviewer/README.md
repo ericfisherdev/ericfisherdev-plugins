@@ -74,6 +74,7 @@ The design follows a benchmark of three earlier review toolkits on the same set 
 |---|---|
 | A selected finding is blocking | `REQUEST_CHANGES` |
 | Nothing selected is blocking | `APPROVE` |
+| Nothing selected is blocking, but the diff has files that were not reviewed (lockfiles, generated, vendored, binary) | `COMMENT`, naming the files |
 | Your own PR, a draft, `--comment-only`, or the PR head moved after the review | `COMMENT` |
 | Nothing selected | nothing is posted, unless you choose a plain approval |
 
@@ -84,6 +85,7 @@ Severity is `critical`, `major`, `minor` or `nit`. Blocking is a separate decisi
 - **Tree at the PR head.** If the working directory is a clone of the repository, clean and already at the PR head, it is used as it is. Otherwise the PR head is fetched (`pull/N/head`, so forks work) and a detached worktree is created under the state directory and removed at the end. No branch is ever checked out in your clone, so it is safe in a main checkout with uncommitted work.
 - **No clone.** If the working directory is not a clone of the repository, the review runs from the diff alone and says so.
 - **Writes.** Only under the state directory, `~/.claude/pr-reviewer/` (under `$CLAUDE_CONFIG_DIR` when set), and one review on GitHub in stage 6. Nothing is written in the repository.
+- **The PR is untrusted input.** Convention files are read from the PR head only when they are regular files inside the tree (symlinks are skipped), and one the PR itself changes is marked so. A review thread started by the PR author never removes a finding. Every candidate the verifier removes is listed with its reason next to the findings.
 - **GitHub access.** `gh pr view` and `gh pr diff` are required. `gh api` is used for existing review threads, your login and posting; if the first two are refused the review continues and says what it could not check.
 
 | Path | Purpose |

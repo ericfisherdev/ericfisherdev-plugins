@@ -127,6 +127,16 @@ class FinalizeTest(RunCase):
         self.update_plan(own_pr=False, draft=True)
         self.assertEqual(self.finalize()["proposed_event"], "COMMENT")
 
+    def test_unreviewed_files_cap_a_clean_review_at_comment_but_not_a_change_request(self):
+        self.update_plan(unreviewed=["vendor/lib.php"])
+        self.verified(raw("a"))
+        result = self.finalize()
+        self.assertEqual(result["proposed_event"], "COMMENT")
+        self.assertIn("so this review cannot approve: `vendor/lib.php`", result["markdown"])
+        self.verified(raw("bad", severity="major", blocking=True))
+        self.write("refuted.json", {"verdicts": [{"key": "bad", "file": "src/app.py", "verdict": "stands", "reason": "held"}]})
+        self.assertEqual(self.finalize()["proposed_event"], "REQUEST_CHANGES")
+
     def test_pass_is_recorded_as_pending_with_dropped_reasons(self):
         self.verified(raw("a"), dropped=[{"key": "x", "title": "X", "file": "b.py", "line": 1,
                                           "reason": "pre-existing", "disposition": "dropped"}])
@@ -183,6 +193,10 @@ class EventTest(unittest.TestCase):
     def test_follows_the_selection(self):
         self.assertIs(self.decide(True), Event.REQUEST_CHANGES)
         self.assertIs(self.decide(False), Event.APPROVE)
+
+    def test_unreviewed_files_turn_an_approval_into_a_comment_only(self):
+        self.assertIs(self.decide(False, unreviewed=True), Event.COMMENT)
+        self.assertIs(self.decide(True, unreviewed=True), Event.REQUEST_CHANGES)
 
     def test_comment_whenever_a_verdict_would_be_wrong(self):
         for flag in ("own_pr", "draft", "head_moved", "comment_only"):
@@ -270,6 +284,12 @@ class PostTest(RunCase):
         self.assertEqual(result["payload"]["event"], "APPROVE")
         self.assertEqual(self.gh.count("pulls/7/reviews"), 0)
         self.assertIsNone(Ledger.load(self.dirs.ledger).last_closed_sha())
+
+    def test_unreviewed_files_are_named_and_not_approved(self):
+        self.update_plan(unreviewed=["yarn.lock"])
+        self.gh.on("pulls/7/reviews", "https://example.test/review/5\n")
+        self.assertEqual(self.post("none", approve=True)["event"], "COMMENT")
+        self.assertIn("Not reviewed, so not approved: yarn.lock.", self.payload()["body"])
 
     def test_comment_only_never_approves(self):
         self.gh.on("pulls/7/reviews", "https://example.test/review/4\n")
