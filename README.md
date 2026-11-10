@@ -30,6 +30,7 @@ claude plugins:add ericfisherdev-plugins/jira-tools
 | [minions](#minions) | Runs the main conversation on Haiku as a dispatcher that never does work itself and routes every task to a minion on the model tier that fits it | 0.1.0 |
 | [architecture-tools](#architecture-tools) | Full architecture, behavioral, and forensic code analysis written as numbered markdown documents | 1.0.4 |
 | [review-watcher](#review-watcher) | Watches the GitHub repositories you list for review requests and opens one Claude Code tab per PR running your own review command | 0.1.0 |
+| [pr-reviewer](#pr-reviewer) | Reviews a GitHub pull request with two independent reviewers, size-gated lenses and a verification pass, then posts the findings you select as one review; pairs with review-watcher | 0.1.4 |
 
 ---
 
@@ -406,6 +407,31 @@ Watches the GitHub repositories you list for review requests (and replies on you
 **Requirements:**
 - `gh` (logged in), `python3` 3.7+, `claude` on the PATH
 - `tmux` on Linux and macOS; Windows Terminal on Windows or WSL
+
+---
+
+### pr-reviewer
+
+Reviews one GitHub pull request on any repository and posts the findings you select as a single review. Scripts gather the PR into a review pack on disk; two independent reviewers always read it, and reach, data-deploy and security lenses are added by diff size and shape; a verifier re-reads the code behind every candidate, merges duplicates and drops what the PR was already told; a refuter attacks every blocking finding. A per-PR ledger outside the repository scopes a re-review to the new commits and keeps a declined finding declined. It never checks out a branch in your clone.
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/pr-reviewer:review` | Review `owner/name PR` (`--auto` posts without asking, `--full` ignores earlier passes, `--comment-only`, `--dry-run`) |
+
+**Agents:** `defect-reviewer`, `context-reviewer`, `reach-lens`, `data-deploy-lens`, `security-lens`, `verifier`, `refuter`
+
+**With review-watcher:** set the review command to `/pr-reviewer:review {repo} {pr}`.
+
+**Install:**
+
+```bash
+/plugin install pr-reviewer --marketplace ericfisherdev/ericfisherdev-plugins
+```
+
+**Requirements:**
+- `gh` (logged in), `git`, `python3` 3.8+
 
 ---
 
