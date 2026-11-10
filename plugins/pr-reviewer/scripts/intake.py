@@ -238,7 +238,8 @@ def prepare(repo: str, pr: int, *, gh: Gh, git: Git, root: Path, cwd: str, force
         "mode": mode, "band": planner.band_for(shape.lines).value, "lines": shape.lines,
         "own_pr": bool(viewer) and viewer == author, "draft": bool(meta.get("isDraft")),
         "review_decision": meta.get("reviewDecision") or None,
-        "unreviewed": [r.path for r in records if r.kind is diffmap.FileKind.NOISE],
+        # From the whole PR, not the reviewed range: an approval covers every file the PR changes.
+        "unreviewed": [r.path for r in full if r.kind is diffmap.FileKind.NOISE],
         "run_dir": str(dirs.run), "tree": tree, "tree_host": git.toplevel(cwd) if temporary else None,
         "notes": notes,
         "stages": [{"agent": f"pr-reviewer:{s.agent.value}", "prompt": stage_prompt(dirs.run, tree, s.diff, s.output)}

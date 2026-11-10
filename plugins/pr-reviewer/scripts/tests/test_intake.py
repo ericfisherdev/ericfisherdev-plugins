@@ -231,6 +231,7 @@ class IncrementalTest(IntakeCase):
         result = self.prepare()
         self.assertEqual(result["mode"], "incremental")
         self.assertEqual(result["lines"], 1)
+        self.assertEqual(result["unreviewed"], ["package-lock.json"])
         self.assertNotIn("CREATE TABLE", (self.dirs.run / "review.patch").read_text(encoding="utf-8"))
         self.assertIn("db/migrations/001.sql", json.loads((self.dirs.run / "anchors.json").read_text(encoding="utf-8")))
 
